@@ -1,0 +1,6 @@
+{
+  "name": "Draftsmith",
+  "description": "A Free Studio for Novelists. Compose, typeset, and edit novels with professional standard margins, line heights, running headers, and download print-ready PDFs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
