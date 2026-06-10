@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Chapter } from '../types';
-import { FileText, Save, RefreshCw, PenTool, Check, Layers, Upload, Loader2, X } from 'lucide-react';
+import { FileText, Save, RefreshCw, PenTool, Check, Layers, Upload, Loader2, X, Plus, Trash2 } from 'lucide-react';
 
 interface EditorViewProps {
   chapters: Chapter[];
@@ -57,6 +57,52 @@ export const EditorView: React.FC<EditorViewProps> = ({ chapters, setChapters, o
     setHasChanges(false);
     setSavedStatus(true);
     setTimeout(() => setSavedStatus(false), 2000);
+  };
+
+  const handleAddChapter = () => {
+    const nextIdx = chapters.length + 1;
+    const newNumber = getChapterNumberText(nextIdx);
+    const newChap: Chapter = {
+      id: `chap_${Date.now()}`,
+      number: newNumber,
+      title: `Untitled Chapter`,
+      content: `Start writing your new chapter here...`
+    };
+    setChapters((prev) => [...prev, newChap]);
+    setActiveChapterId(newChap.id);
+    setHasChanges(true);
+    setSavedStatus(false);
+  };
+
+  const handleDeleteChapter = (id: string, title: string) => {
+    if (chapters.length <= 1) {
+      alert("You must keep at least one chapter in your manuscript.");
+      return;
+    }
+    if (window.confirm(`Are you sure you want to permanently delete chapter "${title || 'Untitled'}"?`)) {
+      setChapters((prev) => {
+        const index = prev.findIndex((c) => c.id === id);
+        const filtered = prev.filter((c) => c.id !== id);
+        
+        // Recalculate chapter numbers for sequence mapping consistency
+        const updated = filtered.map((c, i) => ({
+          ...c,
+          number: getChapterNumberText(i + 1)
+        }));
+        
+        // Determine new active chapter
+        if (activeChapterId === id) {
+          const nextActiveIdx = Math.max(0, Math.min(index, updated.length - 1));
+          if (updated[nextActiveIdx]) {
+            setActiveChapterId(updated[nextActiveIdx].id);
+          }
+        }
+        
+        return updated;
+      });
+      setHasChanges(true);
+      setSavedStatus(false);
+    }
   };
 
   const calculateWordCount = (text: string) => {
@@ -322,41 +368,78 @@ export const EditorView: React.FC<EditorViewProps> = ({ chapters, setChapters, o
         {/* Navigation Sidebar (Chapters list) */}
         <div className="w-full md:w-64 border-b md:border-b-0 md:border-r border-polish-border bg-[#F0EEE8] overflow-y-auto p-4 space-y-2 select-none flex flex-col justify-between" id="editor-chapters-sidebar">
           <div className="space-y-2">
-            <div className="text-[10px] font-sans font-bold tracking-widest text-polish-meta uppercase mb-3 px-2">
-              Chapters Mapping
+            <div className="flex items-center justify-between mb-3 px-2">
+              <span className="text-[10px] font-sans font-bold tracking-widest text-[#706E6B] uppercase">
+                Chapters Mapping
+              </span>
+              <button
+                onClick={handleAddChapter}
+                className="flex items-center justify-center gap-1 py-0.5 px-2 bg-[#FAF9F5] border border-polish-border rounded text-[9px] font-sans font-bold text-[#1A1A1A] hover:bg-[#FAF9F5]/40 hover:border-[#1A1A1A]/40 transition duration-150 cursor-pointer shadow-sm uppercase tracking-wider"
+                title="Create blank chapter"
+                id="btn-add-chapter-top"
+              >
+                <Plus className="w-2.5 h-2.5" /> Add
+              </button>
             </div>
-            {chapters.map((chap) => {
-              const wordCount = calculateWordCount(chap.content);
-              const isActive = chap.id === activeChapterId;
-              return (
-                <button
-                  key={chap.id}
-                  onClick={() => setActiveChapterId(chap.id)}
-                  className={`w-full text-left p-3 rounded border transition-all cursor-pointer ${
-                    isActive
-                      ? 'bg-[#FAF9F5] border-polish-border text-polish-dark shadow-sm font-bold'
-                      : 'bg-transparent border-transparent text-polish-text hover:text-[#1A1A1A] hover:bg-[#F0EEE8]'
-                  }`}
-                  id={`btn-editor-select-${chap.id}`}
-                >
-                  <div className="text-[10px] font-sans font-bold tracking-wider text-polish-meta uppercase">
-                    {chap.number}
+
+            <div className="space-y-1.5 max-h-[250px] md:max-h-none overflow-y-auto pr-1" id="editor-chapters-list">
+              {chapters.map((chap) => {
+                const wordCount = calculateWordCount(chap.content);
+                const isActive = chap.id === activeChapterId;
+                return (
+                  <div key={chap.id} className="relative group flex items-stretch">
+                    <button
+                      onClick={() => setActiveChapterId(chap.id)}
+                      className={`flex-1 text-left p-3 pr-10 rounded border transition-all cursor-pointer ${
+                        isActive
+                          ? 'bg-[#FAF9F5] border-polish-border text-polish-dark shadow-sm font-bold'
+                          : 'bg-transparent border-transparent text-[#706E6B] hover:text-[#1A1A1A] hover:bg-black/5'
+                      }`}
+                      id={`btn-editor-select-${chap.id}`}
+                    >
+                      <div className="text-[10px] font-sans font-bold tracking-wider text-polish-meta uppercase">
+                        {chap.number}
+                      </div>
+                      <div className="text-xs font-serif font-bold mt-0.5 truncate text-polish-dark">
+                        {chap.title}
+                      </div>
+                      <div className="text-[10px] font-mono mt-1.5 flex items-center gap-1 text-polish-meta">
+                        <FileText className="w-3 h-3" /> {wordCount} words
+                      </div>
+                    </button>
+                    {chapters.length > 1 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteChapter(chap.id, chap.title);
+                        }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded bg-[#FAF9F5]/90 hover:bg-red-50 text-[#706E6B] hover:text-red-700 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity cursor-pointer flex items-center justify-center shadow-sm border border-polish-border/40 hover:border-red-200 animate-fade-in"
+                        title="Delete this chapter"
+                        id={`btn-delete-chapter-${chap.id}`}
+                      >
+                        <Trash2 className="w-3" />
+                      </button>
+                    )}
                   </div>
-                  <div className="text-xs font-serif font-bold mt-0.5 truncate text-polish-dark">
-                    {chap.title}
-                  </div>
-                  <div className="text-[10px] font-mono mt-1.5 flex items-center gap-1 text-polish-meta">
-                    <FileText className="w-3 h-3" /> {wordCount} words
-                  </div>
-                </button>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
           
           <div className="pt-4 border-t border-polish-border mt-6 space-y-3">
             <div className="px-2 text-center text-[10px] font-sans font-bold text-polish-meta uppercase tracking-wider">
               Length: <strong className="font-bold text-polish-dark">{totalWords}</strong> words
             </div>
+
+            {/* Create blank chapter at bottom */}
+            <button
+              onClick={handleAddChapter}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-[#FAF9F5] border border-polish-border rounded text-[11px] font-sans font-bold text-[#1A1A1A] hover:bg-emerald-50/50 hover:border-emerald-200 transition duration-150 cursor-pointer shadow-sm uppercase tracking-wider"
+              id="sidebar-btn-add-chapter-bottom"
+            >
+              <Plus className="w-3.5 h-3.5 text-polish-dark" />
+              Add Blank Chapter
+            </button>
 
             {/* Document draft importer element */}
             <button
