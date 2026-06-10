@@ -1,42 +1,20 @@
-# Draftsmith
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
+</div>
 
-Draftsmith is a free manuscript formatting and typesetting studio built for novelists, storytellers, and independent authors.
+# Run and deploy your AI Studio app
 
-Unlike traditional word processors, Draftsmith focuses on transforming raw drafts into professionally structured manuscripts. Writers can organize chapters, manage multiple projects, preview book layouts in real time, and export publication-ready documents without wrestling with complex formatting tools.
+This contains everything you need to run your app locally.
 
-## Features
+View your app in AI Studio: https://ai.studio/apps/83538c61-0159-481c-9350-5e7b94cc0d6f
 
-* 📚 Multi-project manuscript library
-* ✍️ Dedicated chapter editor
-* 📖 Live book-format preview
-* 🎨 Multiple reading themes (White, Cream, Sepia, Dark)
-* 📐 Custom margins, spacing, and page dimensions
-* 🔤 Font customization
-* 📄 Professional manuscript formatting
-* 📦 One-click compile and export
-* 🆓 Completely free and open source
+## Run Locally
 
-## Why Draftsmith?
+**Prerequisites:**  Node.js
 
-Most writing software focuses on text editing.
 
-Draftsmith focuses on presentation.
-
-The goal is simple:
-
-**Write anywhere. Format here.**
-
-Whether you're drafting your first novel, preparing a manuscript for submission, or creating a print-ready edition, Draftsmith provides a clean and focused environment built specifically for long-form writing.
-
-## Roadmap
-
-* Character database
-* Worldbuilding manager
-* Timeline tools
-* Writing statistics and analytics
-* Publishing templates
-* EPUB and print-ready export formats
-* Collaboration features
-
-Built by a novelist, for novelists.
-
+1. Install dependencies:
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, FormEvent, MouseEvent } from 'react';
+import { useState, useMemo, useEffect, FormEvent, MouseEvent, ChangeEvent } from 'react';
 import { initialChapters, originalStoryTitle } from './storyData';
 import { ManuscriptConfig, Novel } from './types';
 import { BookViewer } from './components/BookViewer';
@@ -18,7 +18,14 @@ import {
   Sparkles,
   Info,
   Plus,
-  Trash2
+  Trash2,
+  ArrowRight,
+  ExternalLink,
+  Globe,
+  FileCode,
+  ArrowLeft,
+  Upload,
+  AlertTriangle
 } from 'lucide-react';
 
 const DEFAULT_NOVEL: Novel = {
@@ -49,11 +56,87 @@ export default function App() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {}
     }
-    return []; // Empty library by default
+    return [DEFAULT_NOVEL]; // Pre-populate with standard sample novel for a perfect first-load impression
   });
+
+  // Navigation mode transitions between Landing view and Studio Workspace
+  const [viewMode, setViewMode] = useState<'landing' | 'studio'>(() => {
+    const savedMode = localStorage.getItem('manuscript_view_mode');
+    return (savedMode as 'landing' | 'studio') || 'landing';
+  });
+
+  const [activeTab, setActiveTab] = useState<'preview' | 'editor' | 'export'>('preview');
+
+  const handleSetViewMode = (mode: 'landing' | 'studio') => {
+    setViewMode(mode);
+    localStorage.setItem('manuscript_view_mode', mode);
+  };
+
+  // GitHub Pages deployment URL
+  const [ghPagesUrl, setGhPagesUrl] = useState<string>(() => {
+    return localStorage.getItem('manuscript_gh_pages_url') || 'https://omparhad.github.io/draftsmith';
+  });
+
+  const handleSaveGhPagesUrl = (url: string) => {
+    const cleanUrl = url.trim();
+    setGhPagesUrl(cleanUrl);
+    localStorage.setItem('manuscript_gh_pages_url', cleanUrl);
+  };
+
+  // Local Backup and Restore status alert for offline & cache safety
+  const [backupStatus, setBackupStatus] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const handleExportBackup = () => {
+    try {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(novels));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `draftsmith_full_library_backup.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      setBackupStatus({ message: "Full Library backup downloaded! Keep this file safe.", type: 'success' });
+      setTimeout(() => setBackupStatus(null), 6000);
+    } catch (e) {
+      setBackupStatus({ message: "Could not compile download backup file.", type: 'error' });
+      setTimeout(() => setBackupStatus(null), 5000);
+    }
+  };
+
+  const handleImportBackup = (event: ChangeEvent<HTMLInputElement>) => {
+    const fileReader = new FileReader();
+    if (event.target.files && event.target.files[0]) {
+      fileReader.readAsText(event.target.files[0], "UTF-8");
+      fileReader.onload = (e) => {
+        try {
+          const parsed = JSON.parse(e.target?.result as string);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const isValid = parsed.every(n => typeof n.id === 'string' && typeof n.title === 'string' && Array.isArray(n.chapters));
+            if (isValid) {
+              setNovels(parsed);
+              const first = parsed[0];
+              setActiveNovelId(first.id);
+              setChapters(first.chapters);
+              setConfig(first.config);
+              localStorage.setItem('manuscript_active_novel_id', first.id);
+              localStorage.setItem('manuscript_novels', JSON.stringify(parsed));
+              setBackupStatus({ message: "Outstanding! All manuscripts restored successfully.", type: 'success' });
+            } else {
+              setBackupStatus({ message: "Unsupported backup structure. Needs to be a valid Draftsmith file.", type: 'error' });
+            }
+          } else {
+            setBackupStatus({ message: "The loaded collection is empty or invalid.", type: 'error' });
+          }
+        } catch (err) {
+          setBackupStatus({ message: "Error parsing json workspace file.", type: 'error' });
+        }
+        setTimeout(() => setBackupStatus(null), 6000);
+      };
+    }
+  };
 
   const [activeNovelId, setActiveNovelId] = useState<string>(() => {
     const savedId = localStorage.getItem('manuscript_active_novel_id');
@@ -81,11 +164,31 @@ export default function App() {
     chapterDesign: "classic",
   });
 
-  // Keep state in sync with loaded active novel
+  // State for debounced compilation specifically to prevent editor lag and page jumping
+  const [paginatedChapters, setPaginatedChapters] = useState<typeof initialChapters>([]);
+  const [paginatedConfig, setPaginatedConfig] = useState<ManuscriptConfig>({
+    title: "",
+    subtitle: "",
+    authorName: "",
+    authorLastName: "",
+    shortTitle: "",
+    fontFamily: "times",
+    lineSpacing: 1.5,
+    fontSize: 12,
+    letterSpacing: "normal",
+    marginSize: "standard",
+    pageSize: "letter",
+    paperColor: "cream",
+    chapterDesign: "classic",
+  });
+
+  // Keep state in sync with loaded active novel ONLY when activeNovelId changes
   useEffect(() => {
     if (activeNovel) {
       setChapters(activeNovel.chapters);
       setConfig(activeNovel.config);
+      setPaginatedChapters(activeNovel.chapters);
+      setPaginatedConfig(activeNovel.config);
       if (activeNovel.id !== activeNovelId) {
         setActiveNovelId(activeNovel.id);
         localStorage.setItem('manuscript_active_novel_id', activeNovel.id);
@@ -107,10 +210,26 @@ export default function App() {
         paperColor: "cream",
         chapterDesign: "classic",
       });
+      setPaginatedChapters([]);
+      setPaginatedConfig({
+        title: "",
+        subtitle: "",
+        authorName: "",
+        authorLastName: "",
+        shortTitle: "",
+        fontFamily: "times",
+        lineSpacing: 1.5,
+        fontSize: 12,
+        letterSpacing: "normal",
+        marginSize: "standard",
+        pageSize: "letter",
+        paperColor: "cream",
+        chapterDesign: "classic",
+      });
       setActiveNovelId('');
       localStorage.removeItem('manuscript_active_novel_id');
     }
-  }, [activeNovel, activeNovelId]);
+  }, [activeNovelId]);
 
   // Switch between novels cleanly
   const handleSwitchNovel = (id: string) => {
@@ -128,10 +247,30 @@ export default function App() {
       setActiveNovelId(id);
       setChapters(target.chapters);
       setConfig(target.config);
+      setPaginatedChapters(target.chapters);
+      setPaginatedConfig(target.config);
       localStorage.setItem('manuscript_active_novel_id', id);
       localStorage.setItem('manuscript_novels', JSON.stringify(updatedNovels));
     }
   };
+
+  // Debounce updates to the typesetter during active typing to keep input butter-smooth
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPaginatedChapters(chapters);
+      setPaginatedConfig(config);
+    }, 600); // 600ms debounce of paginator compilation
+
+    return () => clearTimeout(timer);
+  }, [chapters, config]);
+
+  // Instantly synchronize pages when the user switches to the previewer or compiler tab
+  useEffect(() => {
+    if (activeTab === 'preview' || activeTab === 'export') {
+      setPaginatedChapters(chapters);
+      setPaginatedConfig(config);
+    }
+  }, [activeTab]);
 
   // Auto-save the active state to localStorage / novels state
   useEffect(() => {
@@ -253,13 +392,11 @@ export default function App() {
     }
   };
 
-  const [activeTab, setActiveTab] = useState<'preview' | 'editor' | 'export'>('preview');
-
-  // 2. Memoized Pagination
+  // 2. Memoized Pagination (Using debounced inputs to avoid laggy keystrokes & flickering)
   const pages = useMemo(() => {
-    if (!activeNovel || !config) return [];
-    return paginateManuscript(chapters, config);
-  }, [chapters, config, activeNovel]);
+    if (!activeNovel || !paginatedConfig) return [];
+    return paginateManuscript(paginatedChapters, paginatedConfig);
+  }, [paginatedChapters, paginatedConfig, activeNovel]);
 
   // Total words calculation
   const totalWords = useMemo(() => {
@@ -285,13 +422,228 @@ export default function App() {
     }
   };
 
+  // 1. Landing Hub View Option (Homepage which leads directly to their GitHub pages)
+  if (viewMode === 'landing') {
+    return (
+      <div className="min-h-screen bg-polish-bg text-polish-dark flex flex-col justify-between font-sans antialiased animate-fade-in" id="landing-viewport">
+        {/* Fixed Header */}
+        <header className="bg-polish-paper border-b border-polish-border px-6 md:px-10 py-4.5 sticky top-0 z-50 flex items-center justify-between shadow-sm" id="landing-header">
+          <div className="flex items-center gap-3">
+            <div className="p-1.5 bg-polish-dark text-polish-paper rounded">
+              <BookMarked className="w-5 h-5" />
+            </div>
+            <h1 className="text-xl md:text-2xl font-cormorant font-bold tracking-wide text-polish-dark">
+              Draftsmith
+            </h1>
+          </div>
+          <button 
+            onClick={() => handleSetViewMode('studio')}
+            className="px-4 py-2 bg-polish-dark text-polish-paper hover:bg-black text-[11px] font-sans font-bold uppercase tracking-widest rounded-lg transition-all cursor-pointer shadow-sm flex items-center gap-2"
+            id="landing-header-btn-studio"
+          >
+            Open Studio <ArrowRight className="w-4 h-4" />
+          </button>
+        </header>
+
+        {/* Hero & Interactive Documentation Dashboard Area */}
+        <main className="flex-1 max-w-5xl w-full mx-auto p-6 md:p-12 space-y-16" id="landing-main">
+          
+          {/* Aesthetic Hero Section */}
+          <section className="text-center max-w-3xl mx-auto space-y-6 pt-4" id="landing-hero">
+            <span className="text-[10px] tracking-[0.25em] font-sans font-bold uppercase text-polish-meta block">A Free Open Source Studio for Novelists</span>
+            <h2 className="text-4xl md:text-6xl font-cormorant font-bold text-polish-dark tracking-tight leading-none">
+              Craft. Page. Compile.
+            </h2>
+            <p className="text-sm md:text-base text-polish-text leading-relaxed font-serif max-w-2xl mx-auto">
+              Draftsmith is a professional, completely open-source typography studio for novelists. Compile your chapters into publisher-ready manuscripts, typeset margins, and paginate your writing instantly for free.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
+              <button
+                onClick={() => handleSetViewMode('studio')}
+                className="px-6 py-3.5 bg-polish-dark text-polish-paper hover:bg-black font-sans font-bold uppercase tracking-wider text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
+              >
+                Launch Writing Studio <ArrowRight className="w-4 h-4" />
+              </button>
+              <a
+                href="#comparison-section"
+                className="px-6 py-3.5 bg-polish-paper border border-polish-border text-polish-dark hover:bg-[#FAF9F5] font-sans font-bold uppercase tracking-wider text-xs rounded-xl transition-all flex items-center gap-2 cursor-pointer"
+              >
+                <Info className="w-4 h-4 text-polish-meta" /> Why Draftsmith?
+              </a>
+            </div>
+          </section>
+
+
+
+          {/* Why Draftsmith Comparison Section */}
+          <section id="comparison-section" className="bg-polish-paper border border-polish-border rounded-2xl p-6 md:p-8 shadow-sm space-y-8 scroll-mt-24">
+            <div className="border-b border-polish-border pb-4 max-w-2xl">
+              <span className="text-[10px] tracking-[0.2em] font-sans font-bold uppercase text-polish-meta block mb-1">Open Source & Privacy First</span>
+              <h3 className="text-2xl font-serif font-bold text-polish-dark">
+                Why Draftsmith Over Popular Writing Software?
+              </h3>
+              <p className="text-xs text-polish-text mt-1">
+                A simple comparison highlighting why novelists prefer a dedicated, light-weight, open-source typesetting workspace over bloated publishing managers.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Feature 1 */}
+              <div className="bg-[#FAF9F5] border border-polish-border rounded-xl p-5 space-y-3 shadow-sm">
+                <div className="w-8 h-8 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center">
+                  <span className="text-amber-800 text-xs font-serif font-bold">1</span>
+                </div>
+                <h4 className="font-sans font-extrabold text-[11px] uppercase tracking-wider text-polish-dark">Automated Typesetting</h4>
+                <p className="text-[11px] leading-relaxed text-polish-text">
+                  <strong>The Word Processor Wrestle:</strong> MS Word and Docs keep margins reflowable, demanding constant manual page indenting, header adjustments, and line breaks that often break mid-draft.
+                </p>
+                <div className="text-[11px] leading-relaxed text-green-900 bg-green-50/50 p-2.5 rounded border border-green-200/50 font-sans">
+                  <strong>Draftsmith Cure:</strong> Direct print-sheet container rendering mapping Garamond/Times structures, setting standard running headers instantly as you type.
+                </div>
+              </div>
+
+              {/* Feature 2 */}
+              <div className="bg-[#FAF9F5] border border-polish-border rounded-xl p-5 space-y-3 shadow-sm">
+                <div className="w-8 h-8 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+                  <span className="text-emerald-800 text-xs font-serif font-bold">2</span>
+                </div>
+                <h4 className="font-sans font-extrabold text-[11px] uppercase tracking-wider text-polish-dark">100% Open Source & Free</h4>
+                <p className="text-[11px] leading-relaxed text-polish-text">
+                  <strong>The Premium Paywall:</strong> Heavy literary managers (Scrivener, Ulysses) demand high licensing charges, platform-locked files, or recurring monthly subscriptions.
+                </p>
+                <div className="text-[11px] leading-relaxed text-green-900 bg-green-50/50 p-2.5 rounded border border-green-200/50 font-sans">
+                  <strong>Draftsmith Cure:</strong> Standard open-source license. Host your own fork, distribute, and read the code anytime. Free forever for the writing community.
+                </div>
+              </div>
+
+              {/* Feature- 3 */}
+              <div className="bg-[#FAF9F5] border border-polish-border rounded-xl p-5 space-y-3 shadow-sm">
+                <div className="w-8 h-8 rounded-full bg-sky-50 border border-sky-200 flex items-center justify-center">
+                  <span className="text-sky-800 text-xs font-serif font-bold">3</span>
+                </div>
+                <h4 className="font-sans font-extrabold text-[11px] uppercase tracking-wider text-polish-dark">Zero-Cloud, Absolute Privacy</h4>
+                <p className="text-[11px] leading-relaxed text-polish-text">
+                  <strong>The Workspace Leaks:</strong> Clunky online apps force automated synchronization. Your manuscript draft is stashed on third-party cloud engines, exposed or collected for data modeling.
+                </p>
+                <div className="text-[11px] leading-relaxed text-green-900 bg-green-50/50 p-2.5 rounded border border-green-200/50 font-sans">
+                  <strong>Draftsmith Cure:</strong> Data resides in your browser's partition memory buffer. No accounts, no credentials, no surveillance. Your words remain yours always.
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Comparison Table */}
+            <div className="border border-polish-border rounded-xl overflow-hidden bg-white text-xs shadow-sm">
+              <div className="bg-[#FAF9F5] px-4 py-3 border-b border-polish-border flex items-center justify-between font-sans">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-polish-dark">Modern Writing Feature Comparison</span>
+                <span className="font-mono text-[9px] text-[#706E6B] font-bold bg-[#FAF9F5] px-2 py-0.5 rounded border border-polish-border">FREE SOFTWARE MODEL</span>
+              </div>
+              <div className="divide-y divide-polish-border/60">
+                <div className="grid grid-cols-4 px-4 py-2.5 bg-[#FAF9F5]/40 text-[10px] font-bold uppercase tracking-wider text-polish-meta">
+                  <div>Capability</div>
+                  <div>MS Word / Docs</div>
+                  <div>Scrivener</div>
+                  <div className="text-polish-dark font-extrabold">Draftsmith</div>
+                </div>
+                <div className="grid grid-cols-4 px-4 py-3 items-center">
+                  <div className="font-semibold text-polish-dark">Printer Margin Sheet</div>
+                  <div className="text-red-700">Manual (Complex)</div>
+                  <div className="text-amber-800">Only compiled</div>
+                  <div className="text-green-800 font-semibold flex items-center gap-1">✓ Automated Page Sheet</div>
+                </div>
+                <div className="grid grid-cols-4 px-4 py-3 items-center">
+                  <div className="font-semibold text-polish-dark">Manuscript Exporter</div>
+                  <div className="text-polish-text">Reflowable Export</div>
+                  <div className="text-polish-text">Complex Setup Dialogue</div>
+                  <div className="text-green-800 font-semibold flex items-center gap-1">✓ 1-Click Double-Spaced PDF</div>
+                </div>
+                <div className="grid grid-cols-4 px-4 py-3 items-center">
+                  <div className="font-semibold text-polish-dark">Cost & Licensing</div>
+                  <div className="text-polish-text">Paid subscription</div>
+                  <div className="text-polish-text">Upfront premium buy</div>
+                  <div className="text-green-800 font-semibold flex items-center gap-1">✓ Open Source & 100% Free</div>
+                </div>
+                <div className="grid grid-cols-4 px-4 py-3 items-center">
+                  <div className="font-semibold text-polish-dark">Privacy Guard</div>
+                  <div className="text-amber-800">Cloud Host Locked</div>
+                  <div className="text-polish-text">Offline files</div>
+                  <div className="text-green-800 font-semibold flex items-center gap-1">✓ Entirely Client-Side Buffer</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Minimalist Feature Matrix Showcase */}
+          <section className="space-y-6" id="landing-features">
+            <span className="text-[10px] tracking-[0.2em] font-sans font-bold uppercase text-polish-meta block text-center">Bespoke Architectural Capabilities</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
+              <div className="bg-polish-paper border border-polish-border rounded-xl p-5 space-y-2">
+                <div className="w-9 h-9 rounded bg-[#F0EEE8] flex items-center justify-center border border-polish-border/40">
+                  <PenTool className="w-4 h-4 text-polish-dark" />
+                </div>
+                <h4 className="font-sans font-bold text-xs uppercase tracking-wider text-[#1A1A1A]">1. Standard Chapters Editor</h4>
+                <p className="text-[11px] text-polish-text leading-relaxed">
+                  Interactive editing workspace with real-time text-aligning buffers, precise inline word estimators, and instant local session storage preservation.
+                </p>
+              </div>
+
+              <div className="bg-polish-paper border border-polish-border rounded-xl p-5 space-y-2">
+                <div className="w-9 h-9 rounded bg-[#F0EEE8] flex items-center justify-center border border-polish-border/40">
+                  <Sliders className="w-4 h-4 text-polish-dark" />
+                </div>
+                <h4 className="font-sans font-bold text-xs uppercase tracking-wider text-[#1A1A1A]">2. Typeset Pagination Matrix</h4>
+                <p className="text-[11px] text-polish-text leading-relaxed">
+                  Instantly preview margins (Narrow, Standard, Wide), standard layouts (Letter, A4 sizes), and classic fonts like Garamond alongside running headers with your last name.
+                </p>
+              </div>
+
+              <div className="bg-polish-paper border border-polish-border rounded-xl p-5 space-y-2">
+                <div className="w-9 h-9 rounded bg-[#F0EEE8] flex items-center justify-center border border-polish-border/40">
+                  <Download className="w-4 h-4 text-polish-dark" />
+                </div>
+                <h4 className="font-sans font-bold text-xs uppercase tracking-wider text-[#1A1A1A]">3. Double-Spaced PDF Exporter</h4>
+                <p className="text-[11px] text-polish-text leading-relaxed">
+                  Export double-spaced publisher submissions and typesetting sets seamlessly using client-side jspdf libraries with automated page indexes and layout bounds.
+                </p>
+              </div>
+
+              <div className="bg-polish-paper border border-polish-border rounded-xl p-5 space-y-2">
+                <div className="w-9 h-9 rounded bg-[#F0EEE8] flex items-center justify-center border border-polish-border/40">
+                  <FileCode className="w-4 h-4 text-polish-dark" />
+                </div>
+                <h4 className="font-sans font-bold text-xs uppercase tracking-wider text-[#1A1A1A]">4. PDF & Plain-Text Importer</h4>
+                <p className="text-[11px] text-polish-text leading-relaxed">
+                  Feed existing plain text files, markdown content, or PDF formats to deconstruct them, divide them into chapter matrices, and format them beautifully.
+                </p>
+              </div>
+
+            </div>
+          </section>
+
+        </main>
+
+        {/* Home Footer */}
+        <footer className="bg-polish-paper border-t border-polish-border py-6 px-10 text-center text-xs text-[#706E6B] font-sans flex justify-center items-center" id="landing-footer">
+          <span>© {new Date().getFullYear()} omparhad — Crafting Elegant Literary Typography (Open Source)</span>
+        </footer>
+      </div>
+    );
+  }
+
+  // 2. Return Standard Studio Workspace
   return (
-    <div className="min-h-screen bg-polish-bg text-polish-dark flex flex-col justify-between font-sans antialiased" id="applet-viewport">
+    <div className="min-h-screen bg-polish-bg text-polish-dark flex flex-col justify-between font-sans antialiased animate-fade-in" id="applet-viewport">
       
       {/* Premium Studio Header in Professional Polish Style */}
       <header className="bg-polish-paper border-b border-polish-border px-6 md:px-10 py-5 sticky top-0 z-50 flex flex-col sm:flex-row sm:items-end justify-between gap-4" id="applet-header">
         <div className="space-y-1">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-polish-meta font-sans font-bold">A Free Studio for Novelists</p>
+          <div className="flex items-center gap-2">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-polish-meta font-sans font-bold">A Free Studio for Novelists</p>
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-green-50 border border-green-200">
+              <span className="w-1 h-1 rounded-full bg-green-600 animate-pulse"></span>
+              <span className="text-[9px] font-sans font-bold text-green-800 uppercase tracking-wider">Autosave Active</span>
+            </span>
+          </div>
           <div className="flex items-center gap-3">
             <div className="p-1.5 bg-polish-dark text-polish-paper rounded">
               <BookMarked className="w-5 h-5" />
@@ -300,6 +652,17 @@ export default function App() {
               Draftsmith
             </h1>
           </div>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => handleSetViewMode('landing')}
+            className="flex items-center gap-2 px-4 py-2 bg-[#FAF9F5] border border-polish-border text-xs font-sans font-bold uppercase tracking-wider text-polish-dark hover:bg-[#F0EEE8] rounded-lg transition-all cursor-pointer shadow-sm"
+            id="btn-return-home-hub"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Home & Deploy Hub
+          </button>
         </div>
       </header>
 
@@ -588,6 +951,65 @@ export default function App() {
             </div>
           </div>
           )}
+
+          {/* Workspace Safeguard & Backup Hub */}
+          <div className="bg-polish-paper border border-polish-border rounded-xl p-5 space-y-4 shadow-sm animate-fade-in" id="sidebar-safety-backup">
+            <div className="flex items-center space-x-2 border-b border-polish-border pb-3">
+              <Sliders className="w-4 h-4 text-polish-text rotate-90" />
+              <h2 className="text-xs font-sans font-bold uppercase tracking-widest text-[#1A1A1A]">Safeguard & Backups</h2>
+            </div>
+            
+            <p className="text-[11px] text-polish-text leading-relaxed">
+              Draftsmith is <strong>100% offline-first & open-source</strong>. None of your novels are uploaded to any server or cloud database.
+            </p>
+
+            <div className="space-y-2.5 bg-amber-50/50 border border-amber-200/60 rounded p-3 text-[11px]">
+              <div className="flex gap-2 items-start text-amber-900">
+                <AlertTriangle className="w-4.5 h-4.5 text-amber-700 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="font-bold block">Browser Cache & Crashes:</strong>
+                  Your text is protected against unexpected browser or computer crashes via real-time local buffer memory. However, <span className="underline">manually clearing your browser cache or cookies will wipe all local work</span>.
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3.5 pt-1.5">
+              <div>
+                <p className="text-[10px] text-polish-meta font-sans font-bold uppercase tracking-wider mb-2">1. Export Library Backup</p>
+                <button
+                  onClick={handleExportBackup}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#FAF9F5] border border-polish-border hover:bg-[#F0EEE8] transition text-xs font-sans font-bold uppercase tracking-wider text-polish-dark rounded cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Download Backup File
+                </button>
+              </div>
+
+              <div>
+                <p className="text-[10px] text-polish-meta font-sans font-bold uppercase tracking-wider mb-1.5">2. Restore Workspace</p>
+                <label className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#FAF9F5] border border-polish-border border-dashed hover:bg-[#F0EEE8] hover:border-polish-dark transition text-xs font-sans font-bold uppercase tracking-wider text-polish-dark rounded cursor-pointer text-center">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Upload Backup (.json)</span>
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={handleImportBackup}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            </div>
+
+            {backupStatus && (
+              <div className={`p-3 rounded text-[11px] leading-relaxed transition-all duration-300 ${
+                backupStatus.type === 'success' 
+                  ? 'bg-green-50 text-green-900 border border-green-200' 
+                  : 'bg-red-50 text-red-900 border border-red-200'
+              }`}>
+                {backupStatus.message}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Center/Right: Tab Workspace Viewports */}
@@ -762,11 +1184,8 @@ export default function App() {
       </main>
 
       {/* Aesthetic Footer */}
-      <footer className="bg-polish-paper border-t border-polish-border py-6 px-10 text-center text-xs text-[#706E6B] font-sans flex flex-col md:flex-row justify-between items-center gap-4" id="applet-footer">
-        <div className="flex gap-6">
-          <p><span className="font-bold">STUDIO:</span> PROFESSIONAL TYPESETTER</p>
-        </div>
-        <span>© {new Date().getFullYear()} Manuscript Studio — Crafting Elegant Literary Typography</span>
+      <footer className="bg-polish-paper border-t border-polish-border py-6 px-10 text-center text-xs text-[#706E6B] font-sans flex justify-center items-center" id="applet-footer">
+        <span>© {new Date().getFullYear()} omparhad — Crafting Elegant Literary Typography (Open Source)</span>
       </footer>
 
     </div>

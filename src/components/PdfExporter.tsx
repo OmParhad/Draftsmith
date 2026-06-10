@@ -117,7 +117,7 @@ export const PdfExporter: React.FC<PdfExporterProps> = ({ chapters, config }) =>
           doc.setFont(fontName, 'italic');
           // Draw Subheading
           doc.text(page.chapterTitle, width / 2, 51, { align: 'center' });
-          currentY = 70; // major leap for chapter onset
+          currentY = 65; // major leap for chapter onset
         }
 
         // C. Render Paragraphs

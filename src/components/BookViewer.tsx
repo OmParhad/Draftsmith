@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight, BookOpen, Scaling, FileText, Sparkles } from 'lucide-react';
 import { ManuscriptConfig, PageLayout } from '../types';
@@ -14,8 +14,43 @@ export const BookViewer: React.FC<BookViewerProps> = ({ pages, config, setConfig
   const [showMargins, setShowMargins] = useState<boolean>(false);
   const [spreadMode, setSpreadMode] = useState<boolean>(false);
 
+  // Measure stage container width for precise scale calculations
+  const stageContainerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState<number>(560);
+
+  useEffect(() => {
+    if (!stageContainerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      if (!entries || entries.length === 0) return;
+      setContainerWidth(entries[0].contentRect.width);
+    });
+    observer.observe(stageContainerRef.current);
+    return () => observer.disconnect();
+  }, [spreadMode]); // Recalculate on spread mode shifts as well
+
   // Filter out any pages if none exist
   if (pages.length === 0) return null;
+
+  // Exact Millimeter-to-Pixel Coordinates Mapper matching jsPDF Math
+  const isA4 = config.pageSize === 'a4';
+  const pageWidthMm = isA4 ? 210 : 215.9;
+  const pageHeightMm = isA4 ? 297 : 279.4;
+
+  let marginMm = 25.4; // Default: 1 inch (25.4 mm)
+  if (config.marginSize === 'narrow') marginMm = 19.05; // 0.75 inch
+  if (config.marginSize === 'wide') marginMm = 31.75; // 1.25 inch
+
+  const pxPerMm = 560 / pageWidthMm;
+  const pageHeightPx = pageHeightMm * pxPerMm;
+  const paddingPx = marginMm * pxPerMm;
+
+  const ptToMm = 0.352778;
+  const fontSizePx = config.fontSize * ptToMm * pxPerMm;
+
+  const spacingMultiplier = config.lineSpacing === 2.0 ? 1.85 : (config.lineSpacing === 1.5 ? 1.45 : 1.15); 
+  const lineHeightPx = config.fontSize * ptToMm * spacingMultiplier * pxPerMm;
+  const paragraphSpacingPx = 4 * pxPerMm;
+  const chapterHeadingTopMarginPx = 15 * pxPerMm; // calibrated top visual onset offset
 
   const fontClassMap = {
     times: 'font-serif',
@@ -65,7 +100,15 @@ export const BookViewer: React.FC<BookViewerProps> = ({ pages, config, setConfig
     if (p.startsWith('•') || p.startsWith('-')) {
       const items = p.trim().split('\n');
       return (
-        <ul className="list-disc pl-8 my-4 space-y-2 text-left text-sm font-mono tracking-tight text-polish-text" id={`list-${Math.random()}`}>
+        <ul 
+          className="list-disc pl-6 text-left font-mono tracking-tight text-polish-text" 
+          style={{ 
+            fontSize: `${fontSizePx * 0.9}px`, 
+            lineHeight: `${lineHeightPx}px`,
+            marginBottom: `${paragraphSpacingPx}px` 
+          }}
+          id={`list-${Math.random()}`}
+        >
           {items.map((item, idx) => (
             <li key={idx} id={`li-${idx}`}>
               {item.replace(/^[•-]\s*/, '')}
@@ -78,9 +121,16 @@ export const BookViewer: React.FC<BookViewerProps> = ({ pages, config, setConfig
     // Check if paragraph is actually a document summary block (e.g. Affiliated Merchants)
     if (p.includes('Affiliated Merchants & Houses') || p.includes('Affiliated Merchants')) {
       return (
-        <div className="border-l-4 border-[#1A1A1A] pl-4 py-2 my-4 bg-[#F0EEE8] italic text-[14px]">
+        <div 
+          className="border-l-4 border-polish-dark pl-4 bg-[#F0EEE8]/40 italic"
+          style={{ 
+            fontSize: `${fontSizePx}px`, 
+            lineHeight: `${lineHeightPx}px`,
+            marginBottom: `${paragraphSpacingPx}px`
+          }}
+        >
           {p.split('\n').map((line, idx) => (
-            <p key={idx} className="my-1 text-left">{line}</p>
+            <div key={idx} className="text-left" style={{ lineHeight: `${lineHeightPx}px` }}>{line}</div>
           ))}
         </div>
       );
@@ -89,9 +139,17 @@ export const BookViewer: React.FC<BookViewerProps> = ({ pages, config, setConfig
     // Letters or highly formatted blocks
     if (p.includes('Dear Mr. Edward') || p.includes('Dear James Ashcroft') || p.includes('In earnest faith') || p.startsWith('To James Ashcroft') || p.startsWith('To James')) {
       return (
-        <div className="pl-6 italic my-5 text-polish-text border-l-2 border-polish-border" style={{ textIndent: '0' }}>
+        <div 
+          className="pl-4 italic text-polish-text border-l-2 border-polish-border" 
+          style={{ 
+            textIndent: '0',
+            fontSize: `${fontSizePx}px`, 
+            lineHeight: `${lineHeightPx}px`,
+            marginBottom: `${paragraphSpacingPx}px`
+          }}
+        >
           {p.split('\n').map((line, idx) => (
-            <p key={idx} className="my-1 text-left">{line}</p>
+            <div key={idx} className="text-left" style={{ lineHeight: `${lineHeightPx}px` }}>{line}</div>
           ))}
         </div>
       );
@@ -101,7 +159,15 @@ export const BookViewer: React.FC<BookViewerProps> = ({ pages, config, setConfig
     const isRationalSupTable = p.startsWith('• Rational:') || p.startsWith('• Supernatural:');
     if (isRationalSupTable) {
       return (
-        <p className="my-3 text-left font-mono text-sm leading-relaxed" style={{ textIndent: '1em' }}>
+        <p 
+          className="text-left font-mono leading-relaxed" 
+          style={{ 
+            textIndent: '1em',
+            fontSize: `${fontSizePx * 0.95}px`, 
+            lineHeight: `${lineHeightPx}px`,
+            marginBottom: `${paragraphSpacingPx}px`
+          }}
+        >
           {p}
         </p>
       );
@@ -111,8 +177,10 @@ export const BookViewer: React.FC<BookViewerProps> = ({ pages, config, setConfig
       <p 
         className="text-justify font-normal" 
         style={{ 
-          textIndent: p.trim().startsWith('CHAPTER') || p.trim().startsWith('*') ? '0' : '2.5rem',
-          marginBottom: '1rem'
+          textIndent: p.trim().startsWith('CHAPTER') || p.trim().startsWith('*') ? '0' : '2rem',
+          fontSize: `${fontSizePx}px`,
+          lineHeight: `${lineHeightPx}px`,
+          marginBottom: `${paragraphSpacingPx}px`
         }}
       >
         {p}
@@ -132,46 +200,95 @@ export const BookViewer: React.FC<BookViewerProps> = ({ pages, config, setConfig
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: -20 }}
         transition={{ duration: 0.25 }}
-        className={`relative aspect-[1/1.294] w-full max-w-[560px] border border-polish-border rounded ${paperThemeClassMap[config.paperColor]} transition-colors duration-300 flex flex-col justify-between`}
+        className={`relative w-[560px] shrink-0 border border-polish-border rounded ${paperThemeClassMap[config.paperColor]} transition-colors duration-300 flex flex-col justify-between overflow-hidden select-none`}
+        style={{
+          height: `${pageHeightPx}px`,
+        }}
         id={`page-sheet-${pageIdx}`}
       >
         {/* Margin Guides */}
         {showMargins && (
-          <div className="absolute inset-8 sm:inset-12 border border-dashed border-polish-meta/40 pointer-events-none z-10" id={`guides-${pageIdx}`}>
-            <span className="absolute -top-5 left-1 text-[8px] text-polish-meta font-mono">1" Top</span>
-            <span className="absolute -bottom-5 left-1 text-[8px] text-polish-meta font-mono">1" Bottom</span>
-            <span className="absolute top-1/2 -left-6 transform -rotate-90 text-[8px] text-polish-meta font-mono">1" Left</span>
-            <span className="absolute top-1/2 -right-7 transform rotate-90 text-[8px] text-polish-meta font-mono">1" Right</span>
+          <div 
+            className="absolute border border-dashed border-polish-meta/40 pointer-events-none z-10" 
+            style={{
+              top: `${paddingPx}px`,
+              bottom: `${paddingPx}px`,
+              left: `${paddingPx}px`,
+              right: `${paddingPx}px`,
+            }}
+            id={`guides-${pageIdx}`}
+          >
+            <span className="absolute -top-5 left-1 text-[8px] text-polish-meta font-mono">
+              {(marginMm / 25.4).toFixed(2)}" Top
+            </span>
+            <span className="absolute -bottom-5 left-1 text-[8px] text-polish-meta font-mono">
+              {(marginMm / 25.4).toFixed(2)}" Bottom
+            </span>
+            <span className="absolute top-1/2 -left-6 transform -rotate-90 text-[8px] text-polish-meta font-mono">
+              {(marginMm / 25.4).toFixed(2)}" Left
+            </span>
+            <span className="absolute top-1/2 -right-7 transform rotate-90 text-[8px] text-polish-meta font-mono">
+              {(marginMm / 25.4).toFixed(2)}" Right
+            </span>
           </div>
         )}
 
         {/* Normal Page */}
         {!page.isTitlePage ? (
-          <div className={`flex-1 flex flex-col justify-between ${getMarginClass()}`}>
+          <>
             {/* Running Header */}
-            <div className="flex justify-end border-b border-polish-border pb-2 mb-4">
-              <span className="text-[11px] font-mono tracking-wider opacity-80 uppercase text-right">
+            <div 
+              className="absolute border-b border-polish-border/40 pb-2"
+              style={{
+                top: `${15 * pxPerMm}px`,
+                left: `${paddingPx}px`,
+                right: `${paddingPx}px`,
+                display: 'flex',
+                justifyContent: 'flex-end',
+              }}
+            >
+              <span className="text-[10px] font-mono tracking-wider opacity-60 uppercase text-right">
                 {page.header}
               </span>
             </div>
 
-            {/* Page Content Area */}
-            <div className={`flex-1 flex flex-col justify-start text-[14px] leading-relaxed ${fontClassMap[config.fontFamily]} ${spacingClassMap[config.lineSpacing]}`}>
+            {/* Page Content Area (Perfect match to pagination coordinates) */}
+            <div 
+              className={`absolute overflow-hidden ${fontClassMap[config.fontFamily]}`}
+              style={{
+                top: `${30 * pxPerMm}px`,
+                bottom: `${marginMm * pxPerMm}px`,
+                left: `${paddingPx}px`,
+                right: `${paddingPx}px`,
+                fontSize: `${fontSizePx}px`,
+                lineHeight: `${lineHeightPx}px`
+              }}
+            >
               {/* Chapter Start Header */}
               {page.isChapterStart && page.chapterTitle && (
-                <div className="text-center my-8 select-none">
-                  <h2 className="text-[14px] font-bold tracking-widest uppercase mb-1">
+                <div 
+                  className="text-center select-none flex flex-col justify-center"
+                  style={{
+                    height: `${35 * pxPerMm}px`,
+                  }}
+                >
+                  <h2 
+                    className="font-bold tracking-widest uppercase"
+                    style={{ fontSize: `${fontSizePx}px`, marginBottom: `${4 * pxPerMm}px` }}
+                  >
                     {page.chapterNumber}
                   </h2>
-                  <h3 className="text-[14px] font-normal italic tracking-wide">
+                  <h3 
+                    className="font-normal italic tracking-wide"
+                    style={{ fontSize: `${fontSizePx}px` }}
+                  >
                     {page.chapterTitle}
                   </h3>
-                  <div className="h-4"></div>
                 </div>
               )}
 
               {/* Page paragraphs */}
-              <div className="space-y-1">
+              <div className="space-y-0">
                 {page.paragraphs.map((p, pIdx) => (
                   <React.Fragment key={pIdx}>
                     {renderParagraph(p)}
@@ -179,10 +296,7 @@ export const BookViewer: React.FC<BookViewerProps> = ({ pages, config, setConfig
                 ))}
               </div>
             </div>
-
-            {/* Empty footer indicator */}
-            <div className="h-4"></div>
-          </div>
+          </>
         ) : (
           /* Title Page Layout */
           <div className="flex-1 flex flex-col justify-center items-center p-16">
@@ -291,42 +405,74 @@ export const BookViewer: React.FC<BookViewerProps> = ({ pages, config, setConfig
       </div>
 
       {/* Pages Container Stage */}
-      <div className="flex-1 flex items-center justify-center p-6 md:p-10 overflow-y-auto min-h-[450px]">
+      <div className="flex-1 flex items-center justify-center p-4 md:p-6 overflow-hidden min-h-[450px]" ref={stageContainerRef}>
         <div className="w-full flex items-center justify-center">
           {/* Flip buttons */}
           <button
             onClick={handlePrev}
             disabled={activeIndex === 0}
-            className="p-3 mr-4 rounded-full bg-polish-paper border border-polish-border hover:bg-[#F0EEE8] shadow-sm disabled:opacity-30 disabled:pointer-events-none transition-all"
+            className="p-3 mr-4 rounded-full bg-polish-paper border border-polish-border hover:bg-[#F0EEE8] shadow-sm disabled:opacity-30 disabled:pointer-events-none transition-all shrink-0 z-10"
             id="viewer-btn-prev"
           >
             <ChevronLeft className="w-5 h-5 text-polish-dark" />
           </button>
 
-          {/* Book Stage Canvas */}
-          <div className={`flex gap-6 max-w-full justify-center ${spreadMode ? 'w-full lg:max-w-[1100px]' : 'max-w-[560px] w-full'}`} id="book-stage">
-            <AnimatePresence mode="wait">
-              {spreadMode ? (
-                <>
-                  {/* Left Spread */}
-                  {activeIndex < totalPages ? renderPage(activeIndex) : null}
-                  {/* Right Spread */}
-                  {activeIndex + 1 < totalPages ? renderPage(activeIndex + 1) : (
-                    <div className="hidden lg:flex aspect-[1/1.294] w-full max-w-[560px] rounded border border-dashed border-polish-border flex-col items-center justify-center text-polish-meta text-xs font-serif bg-[#F0EEE8]">
-                      Back of Cover Sheet
-                    </div>
-                  )}
-                </>
-              ) : (
-                renderPage(activeIndex)
-              )}
-            </AnimatePresence>
-          </div>
+          {/* Book Stage Canvas Container with scale mapping */}
+          {(() => {
+            const targetWidth = spreadMode ? 1144 : 560;
+            const targetHeight = pageHeightPx;
+            // Subtract space for the sidebar / layout margins and flip buttons smoothly
+            const availableWidth = Math.max(280, containerWidth - 110);
+            const scale = Math.min(1, availableWidth / targetWidth);
+
+            return (
+              <div 
+                className="overflow-hidden flex items-center justify-center transition-all duration-150"
+                style={{ 
+                  width: `${targetWidth * scale}px`, 
+                  height: `${targetHeight * scale}px` 
+                }}
+                id="book-canvas-scale-viewport"
+              >
+                <div 
+                  className="flex gap-6 justify-center items-start origin-top"
+                  style={{
+                    width: `${targetWidth}px`,
+                    height: `${targetHeight}px`,
+                    transform: `scale(${scale})`,
+                    transformOrigin: 'top center',
+                    flexShrink: 0,
+                  }}
+                  id="book-stage"
+                >
+                  <AnimatePresence mode="wait">
+                    {spreadMode ? (
+                      <>
+                        {/* Left Spread */}
+                        {activeIndex < totalPages ? renderPage(activeIndex) : null}
+                        {/* Right Spread */}
+                        {activeIndex + 1 < totalPages ? renderPage(activeIndex + 1) : (
+                          <div 
+                            className="hidden lg:flex w-[560px] rounded border border-dashed border-polish-border flex-col items-center justify-center text-polish-meta text-xs font-serif bg-[#F0EEE8] shrink-0"
+                            style={{ height: `${pageHeightPx}px` }}
+                          >
+                            Back of Cover Sheet
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      renderPage(activeIndex)
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+            );
+          })()}
 
           <button
             onClick={handleNext}
             disabled={spreadMode ? activeIndex + 2 >= totalPages : activeIndex === totalPages - 1}
-            className="p-3 ml-4 rounded-full bg-polish-paper border border-polish-border hover:bg-[#F0EEE8] shadow-sm disabled:opacity-30 disabled:pointer-events-none transition-all"
+            className="p-3 ml-4 rounded-full bg-polish-paper border border-polish-border hover:bg-[#F0EEE8] shadow-sm disabled:opacity-30 disabled:pointer-events-none transition-all shrink-0 z-10"
             id="viewer-btn-next"
           >
             <ChevronRight className="w-5 h-5 text-polish-dark" />
