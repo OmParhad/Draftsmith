@@ -25,8 +25,12 @@ import {
   FileCode,
   ArrowLeft,
   Upload,
-  AlertTriangle
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  Github
 } from 'lucide-react';
+import { WalkthroughPreview } from './components/WalkthroughPreview';
 
 const DEFAULT_NOVEL: Novel = {
   id: 'edward',
@@ -69,6 +73,7 @@ export default function App() {
   });
 
   const [activeTab, setActiveTab] = useState<'preview' | 'editor' | 'export'>('preview');
+  const [currentSlide, setCurrentSlide] = useState(0);
 
   const handleSetViewMode = (mode: 'landing' | 'studio') => {
     setViewMode(mode);
@@ -424,6 +429,29 @@ export default function App() {
 
   // 1. Landing Hub View Option (Homepage which leads directly to their GitHub pages)
   if (viewMode === 'landing') {
+    const slides = [
+      {
+        title: "1. No Active Manuscript Setup",
+        description: "Initialize your manuscript with custom book-building guidelines. Craft your Novel Title, Volume/Subtitle, and Author credentials to begin.",
+        image: "/src/assets/images/typeset_init_1781078908277.png"
+      },
+      {
+        title: "2. Absolute Page Sheet Preview",
+        description: "Align margins (Standard, narrow, wide) with physical Letter/A4 coordinates. Read, paginate, and track running headers in standard Garamond/Times structures.",
+        image: "/src/assets/images/typeset_preview_1781078930206.png"
+      },
+      {
+        title: "3. Direct Chapters Manager",
+        description: "Add, delete, or rearrange chapters inside your workspace. Real-time per-chapter and cumulative word indicators ensure you track every milestone.",
+        image: "/src/assets/images/typeset_editor_1781078946113.png"
+      },
+      {
+        title: "4. Exquisite PDF Export Engine",
+        description: "Download double-spaced, publisher-grade, print-ready manuscripts instantly. Perfect alignment with no overlapping margins, custom page numbering, and clean dividers.",
+        image: "/src/assets/images/typeset_export_1781078962159.png"
+      }
+    ];
+
     return (
       <div className="min-h-screen bg-polish-bg text-polish-dark flex flex-col justify-between font-sans antialiased animate-fade-in" id="landing-viewport">
         {/* Fixed Header */}
@@ -465,11 +493,115 @@ export default function App() {
                 Launch Writing Studio <ArrowRight className="w-4 h-4" />
               </button>
               <a
-                href="#comparison-section"
-                className="px-6 py-3.5 bg-polish-paper border border-polish-border text-polish-dark hover:bg-[#FAF9F5] font-sans font-bold uppercase tracking-wider text-xs rounded-xl transition-all flex items-center gap-2 cursor-pointer"
+                href="https://github.com/omparhad/Draftsmith"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-6 py-3.5 bg-polish-paper border border-[#1A1A1A] text-polish-dark hover:bg-[#1A1A1A] hover:text-white font-sans font-bold uppercase tracking-wider text-xs rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-sm"
               >
-                <Info className="w-4 h-4 text-polish-meta" /> Why Draftsmith?
+                <Github className="w-4 h-4 shrink-0" /> GitHub Source
               </a>
+            </div>
+          </section>
+
+          {/* Interactive Walkthrough Slideshow Section */}
+          <section className="bg-polish-paper border border-polish-border rounded-2xl p-6 md:p-8 shadow-sm space-y-6" id="tour-slideshow">
+            <div className="text-center md:text-left border-b border-polish-border pb-4 max-w-2xl">
+              <span className="text-[10px] tracking-[0.2em] font-sans font-bold uppercase text-polish-meta block mb-1">Interactive Studio Walkthrough</span>
+              <h3 className="text-2xl font-serif font-bold text-polish-dark">
+                Take a Visual Tour of Draftsmith
+              </h3>
+              <p className="text-xs text-polish-text mt-1">
+                Explore how Draftsmith converts raw text and custom metrics into authentic, typeset book manuscripts ready for publisher review or direct print.
+              </p>
+            </div>
+
+            {/* Slider container */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center bg-[#FAF9F5] p-5 md:p-6 rounded-xl border border-polish-border/80">
+              
+              {/* Left Column: Visual description & controls */}
+              <div className="lg:col-span-4 space-y-4 flex flex-col justify-between h-full py-2">
+                <div className="space-y-3">
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[9px] font-sans font-bold text-amber-800 uppercase tracking-wider">
+                    <Sparkles className="w-2.5 h-2.5" /> Stage active {currentSlide + 1} of 4
+                  </span>
+                  
+                  <h4 className="text-base font-serif font-bold text-polish-dark leading-snug">
+                    {slides[currentSlide].title}
+                  </h4>
+                  
+                  <p className="text-xs text-polish-text leading-relaxed">
+                    {slides[currentSlide].description}
+                  </p>
+                </div>
+
+                {/* Micro Thumbnail indicators to click and switch */}
+                <div className="pt-4 border-t border-polish-border space-y-2">
+                  <div className="text-[10px] font-sans font-bold uppercase tracking-wider text-polish-meta">
+                    Jump to workspace view:
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {slides.map((slide, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setCurrentSlide(idx)}
+                        className={`aspect-video rounded border text-[9px] font-bold overflow-hidden transition-all duration-150 flex flex-col items-center justify-center p-1 relative gap-1 cursor-pointer group ${
+                          currentSlide === idx
+                            ? 'border-polish-dark bg-white ring-2 ring-polish-dark/10 text-polish-dark font-black shadow-sm'
+                            : 'border-polish-border bg-[#F5F2EB]/40 hover:border-polish-dark/50 hover:bg-white text-polish-meta hover:text-polish-dark'
+                        }`}
+                        title={slide.title}
+                      >
+                        {idx === 0 && <Plus className="w-3.5 h-3.5 shrink-0 transition-transform group-hover:scale-110" />}
+                        {idx === 1 && <BookOpen className="w-3.5 h-3.5 shrink-0 transition-transform group-hover:scale-110" />}
+                        {idx === 2 && <PenTool className="w-3.5 h-3.5 shrink-0 transition-transform group-hover:scale-110" />}
+                        {idx === 3 && <Download className="w-3.5 h-3.5 shrink-0 transition-transform group-hover:scale-110" />}
+                        <span className="font-sans font-bold text-[8px] uppercase tracking-wider block">
+                          {idx === 0 ? "INIT" : idx === 1 ? "FORMAT" : idx === 2 ? "EDITOR" : "EXPORT"}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Left/Right Action controls */}
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={() => setCurrentSlide((prev) => (prev === 0 ? 3 : prev - 1))}
+                    className="p-2 bg-[#FAF9F5] border border-polish-border hover:bg-black/5 text-[#1A1A1A] rounded-lg cursor-pointer transition-colors shadow-sm flex-1 flex items-center justify-center gap-1 text-[11px] font-sans font-bold uppercase tracking-wider"
+                  >
+                    <ChevronLeft className="w-4 h-4" /> Prev
+                  </button>
+                  <button
+                    onClick={() => setCurrentSlide((prev) => (prev === 3 ? 0 : prev + 1))}
+                    className="p-2 bg-polish-dark text-polish-paper hover:bg-black rounded-lg cursor-pointer transition-colors shadow-sm flex-1 flex items-center justify-center gap-1 text-[11px] font-sans font-bold uppercase tracking-wider"
+                  >
+                    Next <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Right Column: Dynamic large image with device mock layout bezel */}
+              <div className="lg:col-span-8 bg-white border border-polish-border rounded-xl p-2 md:p-3 shadow-md border-polish-border hover:shadow-lg transition-shadow duration-300 relative group overflow-hidden">
+                <div className="bg-[#F0EEE8]/60 px-3 py-1.5 border-b border-polish-border flex items-center justify-between font-sans text-[10px] text-[#706E6B] rounded-t-lg mb-2 select-none">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-400"></span>
+                    <span className="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
+                    <span className="w-2.5 h-2.5 rounded-full bg-green-400"></span>
+                    <span className="ml-1.5 font-mono text-[9px] text-[#706E6B]/80 select-all font-semibold select-none">draftsmith.studio/{currentSlide === 0 ? "new" : currentSlide === 1 ? "preview" : currentSlide === 2 ? "editor" : "export"}</span>
+                  </div>
+                  <span className="font-sans font-bold tracking-wider text-[9px] text-polish-meta uppercase">
+                    STUDIO VIEW
+                  </span>
+                </div>
+                <div className="relative aspect-[16/9] w-full overflow-hidden rounded bg-[#FAF9F5] border border-polish-border/40 select-none">
+                  <WalkthroughPreview slideIndex={currentSlide} />
+                  {/* Floating badge */}
+                  <span className="absolute bottom-3 right-3 bg-polish-dark/90 backdrop-blur-xs text-white text-[8px] font-sans font-extrabold px-2 py-1 rounded uppercase tracking-[0.15em] select-none shadow-sm">
+                    {currentSlide === 0 ? "INIT SCREEN" : currentSlide === 1 ? "LIVE FORMAT" : currentSlide === 2 ? "CHAPTERS WORK" : "EXPORT PDF"}
+                  </span>
+                </div>
+              </div>
+
             </div>
           </section>
 
