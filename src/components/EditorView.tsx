@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Chapter } from '../types';
-import { FileText, Save, RefreshCw, PenTool, Check, Layers, Upload, Loader2, X, Plus, Trash2 } from 'lucide-react';
+import { FileText, Save, RefreshCw, PenTool, Check, Layers, Upload, Loader2, X, Plus, Trash2, Maximize2, Minimize2 } from 'lucide-react';
 
 interface EditorViewProps {
   chapters: Chapter[];
@@ -32,6 +32,21 @@ export const EditorView: React.FC<EditorViewProps> = ({ chapters, setChapters, o
   const [importError, setImportError] = useState<string>('');
   const [importMode, setImportMode] = useState<'append' | 'new-chapter' | 'auto-split'>('new-chapter');
   const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [isZenMode, setIsZenMode] = useState<boolean>(false);
+
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsZenMode(false);
+      }
+    };
+    if (isZenMode) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isZenMode]);
 
   const activeChapter = chapters.find((c) => c.id === activeChapterId);
 
@@ -364,7 +379,7 @@ export const EditorView: React.FC<EditorViewProps> = ({ chapters, setChapters, o
       </div>
 
       {/* Editor Split Columns */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-[400px]">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-[700px]">
         {/* Navigation Sidebar (Chapters list) */}
         <div className="w-full md:w-64 border-b md:border-b-0 md:border-r border-polish-border bg-[#F0EEE8] overflow-y-auto p-4 space-y-2 select-none flex flex-col justify-between" id="editor-chapters-sidebar">
           <div className="space-y-2">
@@ -477,21 +492,45 @@ export const EditorView: React.FC<EditorViewProps> = ({ chapters, setChapters, o
             </div>
 
             {/* Content Editing Input */}
-            <div className="flex-1 flex flex-col space-y-1">
+            <div className="flex-1 flex flex-col space-y-1 relative group">
               <div className="flex items-center justify-between">
-                <label className="text-[10px] font-sans font-bold tracking-wider uppercase text-polish-meta">
-                  Interactive Text Content (Markdowns & Paragraphs)
+                <label className="text-[10px] font-sans font-bold tracking-wider uppercase text-polish-meta flex items-center gap-1.5">
+                  Interactive Text Content
+                  <span className="bg-amber-100 text-[#7D5A12] px-1.5 py-0.5 rounded text-[8px] font-mono normal-case tracking-normal">
+                    Click to Focus View
+                  </span>
                 </label>
-                <span className="text-[10pt] font-mono text-polish-meta text-right">
-                  {calculateWordCount(activeChapter.content)} words
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] font-mono text-polish-meta text-right">
+                    {calculateWordCount(activeChapter.content)} words
+                  </span>
+                  <button
+                    onClick={() => setIsZenMode(true)}
+                    className="flex items-center gap-1 px-2 py-0.5 bg-white border border-[#1A1A1A] rounded text-[9px] font-sans font-bold uppercase tracking-wider text-polish-dark hover:bg-[#1A1A1A] hover:text-white transition cursor-pointer shadow-xs"
+                    title="Fullscreen Focus Writing Mode"
+                    id="btn-trigger-focus-mode"
+                  >
+                    <Maximize2 className="w-3 h-3" />
+                    <span>Focus screen</span>
+                  </button>
+                </div>
               </div>
-              <textarea
-                value={activeChapter.content}
-                onChange={(e) => handleTextChange(e.target.value)}
-                className="flex-1 w-full bg-[#FAF9F5] border border-polish-border rounded p-5 text-sm font-serif leading-relaxed focus:outline-none focus:ring-1 focus:ring-polish-dark focus:border-polish-dark text-polish-dark overflow-y-auto resize-none min-h-[250px]"
-                id="edit-input-textarea"
-              />
+              <div className="relative flex-1 flex flex-col">
+                <textarea
+                  value={activeChapter.content}
+                  onChange={(e) => handleTextChange(e.target.value)}
+                  onFocus={() => setIsZenMode(true)}
+                  className="flex-1 w-full bg-[#FAF9F5] border border-polish-border rounded p-5 text-sm font-serif leading-relaxed focus:outline-none focus:ring-1 focus:ring-polish-dark focus:border-polish-dark text-polish-dark overflow-y-auto resize-none min-h-[520px] transition-all cursor-zoom-in"
+                  placeholder="Click here to start writing in immersive fullscreen layout..."
+                  id="edit-input-textarea"
+                />
+                <div 
+                  onClick={() => setIsZenMode(true)}
+                  className="absolute bottom-3 right-3 bg-[#1A1A1A]/90 hover:bg-[#1A1A1A] text-white text-[9px] font-sans font-bold px-3 py-1.5 rounded uppercase tracking-wider select-none shadow-sm flex items-center gap-1.5 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                >
+                  <Maximize2 className="w-3 h-3" /> Focus Writing Screen (Esc to close)
+                </div>
+              </div>
             </div>
           </div>
         ) : (
@@ -685,6 +724,94 @@ export const EditorView: React.FC<EditorViewProps> = ({ chapters, setChapters, o
               </button>
             </div>
             
+          </div>
+        </div>
+      )}
+
+      {/* Immersive Focus Writing Desk (Full Screen Overlay) */}
+      {isZenMode && activeChapter && (
+        <div className="fixed inset-0 z-[200] bg-[#1A1A1A]/80 backdrop-blur-lg flex items-center justify-center p-4 md:p-8 animate-fade-in" id="zen-writing-desk">
+          <div className="bg-[#FAF9F5] border border-[#1A1A1A]/10 rounded-xl w-full max-w-5xl h-[92vh] flex flex-col p-6 md:p-10 shadow-2xl relative animate-scale-up">
+            
+            {/* Header Area of the Writing Desk */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-polish-border/60 gap-4">
+              <div className="space-y-1 flex-1">
+                <span className="text-[10px] font-sans font-extrabold text-polish-meta uppercase tracking-widest block">
+                  {activeChapter.number} — FOCUS WRITING DESK
+                </span>
+                <input
+                  type="text"
+                  value={activeChapter.title}
+                  onChange={(e) => handleTitleChange(e.target.value)}
+                  className="bg-transparent border-b border-transparent hover:border-polish-border/40 focus:border-[#1A1A1A] focus:outline-none text-base md:text-lg font-serif font-bold text-[#1A1A1A] w-full py-0.5 transition-all text-ellipsis"
+                  placeholder="Chapter Display Title"
+                  id="zen-chapter-title-input"
+                />
+              </div>
+
+              {/* Status and Action Panel */}
+              <div className="flex items-center gap-3 shrink-0">
+                <div className="bg-[#F0EEE8] border border-polish-border px-3 py-1.5 rounded-lg font-mono text-[10px] text-polish-text flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span className="font-bold">{calculateWordCount(activeChapter.content)}</span> Words
+                </div>
+
+                {savedStatus ? (
+                  <span className="text-[10px] text-green-700 font-sans font-bold uppercase tracking-wider flex items-center gap-1">
+                    <Check className="w-3.5 h-3.5" /> Synchronized
+                  </span>
+                ) : (
+                  <button
+                    onClick={handleSave}
+                    disabled={!hasChanges}
+                    className={`px-3 py-1.5 rounded text-[10px] font-sans font-bold uppercase tracking-wider border transition-all ${
+                      hasChanges
+                        ? 'bg-[#1A1A1A] hover:bg-black text-[#F9F7F2] border-[#1A1A1A] cursor-pointer'
+                        : 'bg-[#F0EEE8] text-polish-meta border-polish-border cursor-not-allowed'
+                    }`}
+                    id="zen-btn-save"
+                  >
+                    <Save className="w-3 h-3 mr-1 inline-block" /> Save
+                  </button>
+                )}
+
+                <button
+                  onClick={() => setIsZenMode(false)}
+                  className="px-3 py-1.5 bg-polish-paper border border-polish-border rounded text-[10px] font-sans font-bold text-polish-dark hover:bg-neutral-100 uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1"
+                  title="Minimize writing workspace [Esc]"
+                  id="zen-btn-close"
+                >
+                  <Minimize2 className="w-3.5 h-3.5" /> Close [Esc]
+                </button>
+              </div>
+            </div>
+
+            {/* Premium Parchment Sheet Layout */}
+            <div className="flex-1 mt-6 flex flex-col items-center overflow-hidden bg-white/50 rounded-xl border border-polish-border/40 p-4 relative group/paper shadow-inner">
+              
+              <div className="w-full max-w-3xl flex-1 flex flex-col relative py-2 px-1">
+                {/* Tiny watermark helper */}
+                <div className="absolute top-1 right-1 text-[8px] font-sans font-bold text-polish-meta/40 tracking-wider select-none pointer-events-none group-focus-within/paper:opacity-10 transition-opacity uppercase">
+                  Immersive Typesetting Mode
+                </div>
+                
+                <textarea
+                  value={activeChapter.content}
+                  onChange={(e) => handleTextChange(e.target.value)}
+                  className="flex-1 w-full bg-transparent text-base md:text-lg font-serif leading-loose text-polish-dark focus:outline-none overflow-y-auto resize-none p-2 focus:ring-0 focus:border-0"
+                  placeholder="Let your narrative flow here..."
+                  autoFocus
+                  id="zen-input-textarea"
+                />
+              </div>
+
+              {/* Status bar */}
+              <div className="w-full max-w-3xl flex items-center justify-between text-[9px] font-sans font-medium text-polish-meta/70 pt-2 border-t border-polish-border/20">
+                <span>PRESS <kbd className="bg-[#FAF9F5] border border-polish-border rounded px-1.5 py-0.5 font-bold shadow-xs">ESC</kbd> TO RETURN TO WORKSPACE LIVE LAYOUT</span>
+                <span className="uppercase tracking-widest font-bold">Draftsmith Typographic Canvas</span>
+              </div>
+            </div>
+
           </div>
         </div>
       )}

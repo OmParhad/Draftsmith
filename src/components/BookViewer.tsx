@@ -1,15 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, ChevronRight, BookOpen, Scaling, FileText, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight, BookOpen, Scaling, FileText, Sparkles, Eye, EyeOff } from 'lucide-react';
 import { ManuscriptConfig, PageLayout } from '../types';
 
 interface BookViewerProps {
   pages: PageLayout[];
   config: ManuscriptConfig;
   setConfig: React.Dispatch<React.SetStateAction<ManuscriptConfig>>;
+  showSidebar?: boolean;
+  setShowSidebar?: (show: boolean) => void;
 }
 
-export const BookViewer: React.FC<BookViewerProps> = ({ pages, config, setConfig }) => {
+export const BookViewer: React.FC<BookViewerProps> = ({ pages, config, setConfig, showSidebar, setShowSidebar }) => {
   const [currentPage, setCurrentPage] = useState<number>(0);
   const [showMargins, setShowMargins] = useState<boolean>(false);
   const [spreadMode, setSpreadMode] = useState<boolean>(false);
@@ -401,6 +403,22 @@ export const BookViewer: React.FC<BookViewerProps> = ({ pages, config, setConfig
           <div className="text-[10px] font-mono font-bold text-polish-text bg-[#F0EEE8] px-3 py-1.5 rounded border border-polish-border">
             {pages.length} Pages
           </div>
+
+          {setShowSidebar && (
+            <button
+              onClick={() => setShowSidebar(!showSidebar)}
+              className={`px-3 py-1.5 rounded border border-polish-border font-sans font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
+                !showSidebar
+                  ? 'bg-polish-dark text-polish-paper border-polish-dark'
+                  : 'bg-[#F9F7F2] text-polish-text hover:text-polish-dark'
+              }`}
+              title={showSidebar ? "Collapse layout matrix bar to expand preview workspace" : "Expand layout matrix bar"}
+              id="btn-toggle-preview-sidebar"
+            >
+              {showSidebar ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              <span>{showSidebar ? 'Hide Matrix' : 'Show Matrix'}</span>
+            </button>
+          )}
         </div>
       </div>
 

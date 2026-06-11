@@ -28,7 +28,9 @@ import {
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
-  Github
+  Github,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { WalkthroughPreview } from './components/WalkthroughPreview';
 
@@ -73,6 +75,7 @@ export default function App() {
   });
 
   const [activeTab, setActiveTab] = useState<'preview' | 'editor' | 'export'>('preview');
+  const [showSidebar, setShowSidebar] = useState<boolean>(true);
   const [currentSlide, setCurrentSlide] = useState(0);
 
   const handleSetViewMode = (mode: 'landing' | 'studio') => {
@@ -802,7 +805,7 @@ export default function App() {
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start" id="applet-body-stage">
         
         {/* Left Side: Layout Config Deck */}
-        <div className="lg:col-span-3 space-y-6 lg:sticky lg:top-28" id="sidebar-container">
+        <div className={`lg:col-span-3 space-y-6 lg:sticky lg:top-28 ${showSidebar ? 'block' : 'hidden'}`} id="sidebar-container">
           
           {/* Novel Library Selection Panel */}
           <div className="bg-polish-paper border border-polish-border rounded-xl p-5 space-y-4 shadow-sm" id="sidebar-novel-library">
@@ -1145,7 +1148,7 @@ export default function App() {
         </div>
 
         {/* Center/Right: Tab Workspace Viewports */}
-        <div className="lg:col-span-9 space-y-6" id="workspace-arena">
+        <div className={`${showSidebar ? 'lg:col-span-9' : 'lg:col-span-12'} space-y-6`} id="workspace-arena">
           
           {/* Navigation Tab Anchors */}
           {activeNovel && (
@@ -1274,6 +1277,8 @@ export default function App() {
                       pages={pages} 
                       config={config} 
                       setConfig={setConfig} 
+                      showSidebar={showSidebar}
+                      setShowSidebar={setShowSidebar}
                     />
                   </div>
                 )}
