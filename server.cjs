@@ -224,6 +224,54 @@ ${text}`;
       res.status(500).json({ error: err.message || "Plagiarism checking service encountered an issue." });
     }
   });
+  const inquiriesList = [
+    {
+      id: "demo-1",
+      name: "Jane Austen",
+      email: "jane@woodhouse-estate.org",
+      topic: "typesetting",
+      subject: "Line-height scaling on classic Letter formats",
+      message: "The Garamond typesetting looks absolutely brilliant. However, would it be possible to add customizable margins for the running headers? Since I am compiling a larger novel, some pages require an extra margin step. Thank you so much for this wonderful tool!",
+      createdAt: new Date(Date.now() - 36e5 * 2).toISOString(),
+      ipAddress: "192.168.1.10"
+    },
+    {
+      id: "demo-2",
+      name: "Arthur Conan Doyle",
+      email: "sherlock@221b-baker.co.uk",
+      topic: "export",
+      subject: "A highly curious PDF compression bug",
+      message: "I attempted to export a 12-chapter file, and some pages showed slightly shifted paragraph drop-caps. Is this an issue with the local browser canvas or did my Chrome cache block standard font measurements? It is a three-pipe problem indeed.",
+      createdAt: new Date(Date.now() - 36e5 * 24).toISOString(),
+      ipAddress: "192.168.1.12"
+    }
+  ];
+  app.get("/api/inquiries", (req, res) => {
+    res.json({ inquiries: inquiriesList });
+  });
+  app.post("/api/inquiries", (req, res) => {
+    try {
+      const { name, email, topic, subject, message } = req.body;
+      if (!name || !email || !subject || !message) {
+        return res.status(400).json({ error: "Missing required inquiry fields." });
+      }
+      const newInquiry = {
+        id: `inq-${Date.now()}-${Math.floor(Math.random() * 1e3)}`,
+        name,
+        email,
+        topic: topic || "bug",
+        subject,
+        message,
+        createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+        ipAddress: getClientIp(req)
+      };
+      inquiriesList.unshift(newInquiry);
+      res.status(201).json({ success: true, inquiry: newInquiry });
+    } catch (e) {
+      console.error("[INQUIRY] Error processing submission:", e);
+      res.status(500).json({ error: "Failed to store inquiry." });
+    }
+  });
   if (process.env.NODE_ENV !== "production") {
     const vite = await (0, import_vite.createServer)({
       server: { middlewareMode: true },
