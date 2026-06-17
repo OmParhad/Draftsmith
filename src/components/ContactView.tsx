@@ -48,6 +48,7 @@ export const ContactView: React.FC<ContactViewProps> = ({ onBackToLanding, onGoT
   const [isLoadingInquiries, setIsLoadingInquiries] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [lastMailtoUrl, setLastMailtoUrl] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
@@ -160,6 +161,20 @@ export const ContactView: React.FC<ContactViewProps> = ({ onBackToLanding, onGoT
     setSubmitError(null);
     setSubmitSuccess(false);
 
+    // Prepare mailto link with form values before clearing them
+    const subjectLine = `[Draftsmith Support] ${form.subject}`;
+    const emailBody = `Sender Details:\n` +
+      `Name: ${form.name}\n` +
+      `Email: ${form.email}\n` +
+      `Topic Category: ${form.topic}\n` +
+      `Date: ${new Date().toLocaleString()}\n` +
+      `----------------------------------------\n\n` +
+      `Message Body:\n${form.message}\n\n` +
+      `---\nInquiry submitted via Draftsmith Support Hub.`;
+      
+    const mailtoLink = `mailto:omparhad4@gmail.com?subject=${encodeURIComponent(subjectLine)}&body=${encodeURIComponent(emailBody)}`;
+    setLastMailtoUrl(mailtoLink);
+
     // Prepare a unique fallback inquiry
     const uniqueLocalId = `inq-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const fallbackInquiry: Inquiry = {
@@ -172,6 +187,13 @@ export const ContactView: React.FC<ContactViewProps> = ({ onBackToLanding, onGoT
       createdAt: new Date().toISOString(),
       ipAddress: "Secure Local Sandbox"
     };
+
+    // Attempt to automatically redirect/open mail app
+    try {
+      window.location.href = mailtoLink;
+    } catch (err) {
+      console.warn("Could not automatically invoke mailto", err);
+    }
 
     try {
       const res = await fetch('/api/inquiries', {
@@ -193,7 +215,7 @@ export const ContactView: React.FC<ContactViewProps> = ({ onBackToLanding, onGoT
         });
         // Refresh inquiries list
         await fetchInquiries();
-        setTimeout(() => setSubmitSuccess(false), 8000);
+        setTimeout(() => setSubmitSuccess(false), 25000);
       } else {
         // Fetch failed with non-200, save locally as fallback
         const localInqs = JSON.parse(localStorage.getItem('draftsmith_local_inquiries') || '[]');
@@ -209,7 +231,7 @@ export const ContactView: React.FC<ContactViewProps> = ({ onBackToLanding, onGoT
           message: '',
         });
         await fetchInquiries();
-        setTimeout(() => setSubmitSuccess(false), 8000);
+        setTimeout(() => setSubmitSuccess(false), 25000);
       }
     } catch (err: any) {
       console.warn("Inquiry network error, falling back to writing to browser storage:", err);
@@ -230,7 +252,7 @@ export const ContactView: React.FC<ContactViewProps> = ({ onBackToLanding, onGoT
       
       // Refresh list to pick up localStorage items
       await fetchInquiries();
-      setTimeout(() => setSubmitSuccess(false), 8000);
+      setTimeout(() => setSubmitSuccess(false), 25000);
     } finally {
       setIsSubmitting(false);
     }
@@ -439,11 +461,41 @@ export const ContactView: React.FC<ContactViewProps> = ({ onBackToLanding, onGoT
               </div>
 
               {submitSuccess && (
-                <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl flex gap-3 text-xs leading-relaxed animate-fade-in" id="submit-success-banner">
-                  <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                  <div>
-                    <strong className="font-bold block text-emerald-950">Inquiry Received and Stored!</strong>
-                    Your inquiry has been compiled and saved to the in-memory server list. Switch to the <strong className="font-bold border-b border-dashed border-emerald-800 cursor-pointer" onClick={() => setActiveTab('developer')}>Real-time Dev Inbox</strong> tab above to view your message immediately.
+                <div className="p-5 bg-emerald-50 border border-emerald-200 text-emerald-950 rounded-xl space-y-3.5 text-xs leading-relaxed animate-fade-in" id="submit-success-banner">
+                  <div className="flex gap-3">
+                    <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="font-sans font-bold block text-sm text-emerald-950">Inquiry Saved & Email Prepared!</strong>
+                      <p className="text-emerald-900 mt-0.5 text-justify">
+                        Your report has been successfully logged. We have triggered your system's native email application (Gmail, Outlook, Mail, etc.) to automatically open with your message already prefilled and addressed to <strong className="font-bold underline">omparhad4@gmail.com</strong>.
+                      </p>
+                    </div>
+                  </div>
+
+                  {lastMailtoUrl && (
+                    <div className="bg-white border border-emerald-200 p-3.5 rounded-lg space-y-2.5 shadow-3xs">
+                      <p className="text-[11px] text-emerald-800 font-medium">
+                        If your browser blocked the automatic redirect, or you are on a phone and need to click manually, please tap the button below:
+                      </p>
+                      <a
+                        href={lastMailtoUrl}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-sans font-extrabold uppercase tracking-wide text-[10px] rounded-md shadow-xs transition"
+                        id="btn-manual-mailto-trigger"
+                      >
+                        <Mail className="w-3.5 h-3.5" />
+                        Open Email Client & Send (omparhad4@gmail.com)
+                      </a>
+                    </div>
+                  )}
+
+                  <div className="text-[11px] text-emerald-800 pt-2 border-t border-emerald-100 flex items-center justify-between">
+                    <span>Logged to secure local history.</span>
+                    <button
+                      onClick={() => setActiveTab('developer')}
+                      className="font-bold hover:underline underline-offset-2 flex items-center gap-1.5"
+                    >
+                      View in local inbox tracker →
+                    </button>
                   </div>
                 </div>
               )}
