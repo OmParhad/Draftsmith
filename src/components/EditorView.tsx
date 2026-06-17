@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { Chapter } from '../types';
-import { FileText, Save, RefreshCw, PenTool, Check, Layers, Upload, Loader2, X, Plus, Trash2, Maximize2, Minimize2 } from 'lucide-react';
+import { 
+  FileText, Save, RefreshCw, PenTool, Check, Layers, Upload, Loader2, X, Plus, Trash2, 
+  Maximize2, Minimize2, Sparkles, Fingerprint, Undo2, AlertCircle, ShieldCheck, HelpCircle,
+  ChevronLeft, ChevronRight 
+} from 'lucide-react';
 
 interface EditorViewProps {
   chapters: Chapter[];
@@ -24,6 +28,23 @@ export const EditorView: React.FC<EditorViewProps> = ({ chapters, setChapters, o
   const [activeChapterId, setActiveChapterId] = useState<string>(chapters[0]?.id || '');
   const [hasChanges, setHasChanges] = useState<boolean>(false);
   const [savedStatus, setSavedStatus] = useState<boolean>(false);
+
+  // Grammar correction and originality check state hooks
+  const [isCorrectingGrammar, setIsCorrectingGrammar] = useState<boolean>(false);
+  const [grammarError, setGrammarError] = useState<string>('');
+  const [grammarSuccessMessage, setGrammarSuccessMessage] = useState<string>('');
+  const [previousContentState, setPreviousContentState] = useState<{ [chapterId: string]: string }>({});
+
+  const [isPlagiarismChecking, setIsPlagiarismChecking] = useState<boolean>(false);
+  const [plagiarismError, setPlagiarismError] = useState<string>('');
+  const [plagiarismReport, setPlagiarismReport] = useState<{
+    originalityScore: number;
+    status: string;
+    overallAnalysis: string;
+    flaggedSections: { phrase: string; similarityReason: string; suggestedAlternative: string }[];
+  } | null>(null);
+  const [showPlagiarismPanel, setShowPlagiarismPanel] = useState<boolean>(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
 
   // Importer states
   const [isImportModalOpen, setIsImportModalOpen] = useState<boolean>(false);
@@ -49,6 +70,150 @@ export const EditorView: React.FC<EditorViewProps> = ({ chapters, setChapters, o
   }, [isZenMode]);
 
   const activeChapter = chapters.find((c) => c.id === activeChapterId);
+
+  // grammar correction execution handler
+  const handleAutocorrectGrammar = async () => {
+    if (!activeChapter) return;
+    if (!activeChapter.content.trim()) {
+      setGrammarError("Please insert literary content to autocorrect.");
+      return;
+    }
+
+    setIsCorrectingGrammar(true);
+    setGrammarError('');
+    setGrammarSuccessMessage('');
+
+    try {
+      const response = await fetch("/api/editor/autocorrect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: activeChapter.content }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Server could not proofread grammar.");
+      }
+
+      const data = await response.json();
+      if (data.correctedText) {
+        // Save current state for undo support
+        setPreviousContentState((prev) => ({
+          ...prev,
+          [activeChapter.id]: activeChapter.content,
+        }));
+
+        setChapters((prev) =>
+          prev.map((c) =>
+            c.id === activeChapter.id ? { ...c, content: data.correctedText } : c
+          )
+        );
+        setHasChanges(true);
+        setSavedStatus(false);
+        setGrammarSuccessMessage("Grammar corrections synchronized!");
+        setTimeout(() => setGrammarSuccessMessage(''), 4000);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setGrammarError(err.message || "Failed to finalize grammar polishing.");
+    } finally {
+      setIsCorrectingGrammar(false);
+    }
+  };
+
+  // Undo grammar autocorrect handler
+  const handleUndoGrammar = () => {
+    if (!activeChapter) return;
+    const historyText = previousContentState[activeChapter.id];
+    if (historyText !== undefined) {
+      setChapters((prev) =>
+        prev.map((c) =>
+          c.id === activeChapter.id ? { ...c, content: historyText } : c
+        )
+      );
+      // Remove undo history for this state
+      setPreviousContentState((prev) => {
+        const copy = { ...prev };
+        delete copy[activeChapter.id];
+        return copy;
+      });
+      setHasChanges(true);
+      setSavedStatus(false);
+      setGrammarSuccessMessage("Reverted to original text copy.");
+      setTimeout(() => setGrammarSuccessMessage(''), 3000);
+    }
+  };
+
+  // Plagiarism report handler
+  const handlePlagiarismCheck = async () => {
+    if (!activeChapter) return;
+    if (!activeChapter.content.trim()) {
+      setPlagiarismError("Please write copy to check originality.");
+      return;
+    }
+
+    setIsPlagiarismChecking(true);
+    setPlagiarismError('');
+    setPlagiarismReport(null);
+    setShowPlagiarismPanel(true); // Open analysis side panel instantly
+
+    try {
+      const response = await fetch("/api/editor/plagiarism-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: activeChapter.content }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Server could not analyze plagiarism status.");
+      }
+
+      const data = await response.json();
+      setPlagiarismReport(data);
+    } catch (err: any) {
+      console.error(err);
+      setPlagiarismError(err.message || "Plagiarism scanning encountered an error.");
+    } finally {
+      setIsPlagiarismChecking(false);
+    }
+  };
+
+  // Replace flagged sequence handler
+  const handleReplacePhrase = (oldPhrase: string, newPhrase: string) => {
+    if (!activeChapter) return;
+    const currentText = activeChapter.content;
+    const index = currentText.indexOf(oldPhrase);
+    let updatedText = "";
+    
+    if (index !== -1) {
+      updatedText = currentText.replace(oldPhrase, newPhrase);
+    } else {
+      // Direct replacement fallback (with safe escape characters)
+      const escapedPhrase = oldPhrase.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      const regex = new RegExp(escapedPhrase, 'gi');
+      updatedText = currentText.replace(regex, newPhrase);
+    }
+
+    setChapters((prev) =>
+      prev.map((c) =>
+        c.id === activeChapter.id ? { ...c, content: updatedText } : c
+      )
+    );
+    setHasChanges(true);
+    setSavedStatus(false);
+
+    // Filter out resolved row
+    if (plagiarismReport) {
+      const updatedFlagged = plagiarismReport.flaggedSections.filter(
+        (sec) => sec.phrase !== oldPhrase
+      );
+      setPlagiarismReport({
+        ...plagiarismReport,
+        flaggedSections: updatedFlagged,
+      });
+    }
+  };
 
   const handleTextChange = (text: string) => {
     if (!activeChapter) return;
@@ -330,7 +495,23 @@ export const EditorView: React.FC<EditorViewProps> = ({ chapters, setChapters, o
       {/* Editor Header */}
       <div className="bg-[#FAF9F5] border-b border-polish-border px-6 py-4 flex flex-wrap gap-4 items-center justify-between" id="editor-header">
         <div className="flex items-center space-x-3">
-          <Layers className="w-5 h-5 text-polish-dark" />
+          <button
+            onClick={() => setIsSidebarCollapsed(prev => !prev)}
+            className={`p-1.5 border rounded-md transition-all cursor-pointer flex items-center justify-center shadow-xs ${
+              isSidebarCollapsed
+                ? 'bg-amber-50 border-amber-200 text-[#7D5A12] hover:bg-amber-100'
+                : 'bg-white border-polish-border text-polish-dark hover:bg-neutral-100'
+            }`}
+            title={isSidebarCollapsed ? "Show Chapters Mapping Sidebar" : "Hide Chapters Mapping Sidebar"}
+            id="editor-header-toggle-sidebar"
+          >
+            {isSidebarCollapsed ? (
+              <ChevronRight className="w-4 h-4" />
+            ) : (
+              <ChevronLeft className="w-4 h-4" />
+            )}
+          </button>
+          <Layers className="w-4 h-4 text-polish-dark hidden sm:block" />
           <div>
             <h3 className="text-sm font-sans font-bold uppercase tracking-wider text-polish-dark mr-2">Manuscript Editor</h3>
             <p className="text-xs text-polish-text line-clamp-1">Write, revise, and align typeset sequences</p>
@@ -381,12 +562,29 @@ export const EditorView: React.FC<EditorViewProps> = ({ chapters, setChapters, o
       {/* Editor Split Columns */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-[700px]">
         {/* Navigation Sidebar (Chapters list) */}
-        <div className="w-full md:w-64 border-b md:border-b-0 md:border-r border-polish-border bg-[#F0EEE8] overflow-y-auto p-4 space-y-2 select-none flex flex-col justify-between" id="editor-chapters-sidebar">
+        <div 
+          className={`bg-[#F0EEE8] overflow-y-auto select-none flex flex-col justify-between transition-all duration-300 ${
+            isSidebarCollapsed 
+              ? 'w-0 h-0 p-0 overflow-hidden border-r-0 border-b-0 md:w-0' 
+              : 'w-full md:w-64 p-4 border-b md:border-b-0 md:border-r border-polish-border'
+          }`} 
+          id="editor-chapters-sidebar"
+        >
           <div className="space-y-2">
             <div className="flex items-center justify-between mb-3 px-2">
-              <span className="text-[10px] font-sans font-bold tracking-widest text-[#706E6B] uppercase">
-                Chapters Mapping
-              </span>
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] font-sans font-bold tracking-widest text-[#706E6B] uppercase">
+                  Chapters Mapping
+                </span>
+                <button
+                  onClick={() => setIsSidebarCollapsed(true)}
+                  className="p-0.5 hover:bg-neutral-250 hover:text-polish-dark text-polish-meta rounded transition cursor-pointer flex items-center justify-center"
+                  title="Collapse Chapters Sidebar"
+                  id="btn-collapse-sidebar-inner"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+              </div>
               <button
                 onClick={handleAddChapter}
                 className="flex items-center justify-center gap-1 py-0.5 px-2 bg-[#FAF9F5] border border-polish-border rounded text-[9px] font-sans font-bold text-[#1A1A1A] hover:bg-[#FAF9F5]/40 hover:border-[#1A1A1A]/40 transition duration-150 cursor-pointer shadow-sm uppercase tracking-wider"
@@ -475,64 +673,224 @@ export const EditorView: React.FC<EditorViewProps> = ({ chapters, setChapters, o
 
         {/* Text Area Workspace */}
         {activeChapter ? (
-          <div className="flex-1 flex flex-col bg-[#FAF9F5] p-6 space-y-4" id="editor-input-area">
-            {/* Title Editing Input */}
-            <div className="flex flex-col space-y-1">
-              <label className="text-[10px] font-sans font-bold tracking-wider uppercase text-polish-meta">
-                Chapter Display Title
-              </label>
-              <input
-                type="text"
-                value={activeChapter.title}
-                onChange={(e) => handleTitleChange(e.target.value)}
-                className="w-full bg-[#FAF9F5] border border-polish-border rounded px-4 py-2 text-sm font-serif font-semibold focus:outline-none focus:border-polish-dark text-polish-dark"
-                placeholder="Chapter Title"
-                id="edit-input-title"
-              />
+          <>
+            <div className="flex-1 flex flex-col bg-[#FAF9F5] p-6 space-y-4" id="editor-input-area">
+              {/* Title Editing Input */}
+              <div className="flex flex-col space-y-1">
+                <label className="text-[10px] font-sans font-bold tracking-wider uppercase text-polish-meta">
+                  Chapter Display Title
+                </label>
+                <input
+                  type="text"
+                  value={activeChapter.title}
+                  onChange={(e) => handleTitleChange(e.target.value)}
+                  className="w-full bg-[#FAF9F5] border border-polish-border rounded px-4 py-2 text-sm font-serif font-semibold focus:outline-none focus:border-polish-dark text-polish-dark"
+                  placeholder="Chapter Title"
+                  id="edit-input-title"
+                />
+              </div>
+
+              {/* Grammar Helper Alert notifications */}
+              {grammarError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded text-red-800 flex items-center gap-2 text-xs animate-fade-in">
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                  <span>{grammarError}</span>
+                </div>
+              )}
+
+              {grammarSuccessMessage && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-center gap-2 text-xs animate-fade-in shadow-xs">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{grammarSuccessMessage}</span>
+                </div>
+              )}
+
+              {/* Content Editing Input */}
+              <div className="flex-1 flex flex-col space-y-1 relative group">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[10px] font-sans font-bold tracking-wider uppercase text-polish-meta flex items-center gap-1.5">
+                    Interactive Text Content
+                    <span className="bg-amber-100 text-[#7D5A12] px-1.5 py-0.5 rounded text-[8px] font-mono normal-case tracking-normal">
+                      Click below to Write
+                    </span>
+                  </label>
+                </div>
+
+                {/* Draftsmith Typographic Canvas Bar */}
+                <div className="flex flex-wrap items-center justify-between bg-[#F0EEE8] border border-polish-border border-b-0 rounded-t p-2 gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="uppercase tracking-widest font-sans font-bold text-[#706E6B] text-[9px] px-1.5 py-0.5 bg-white border border-polish-border rounded select-none">
+                      Draftsmith Typographic Studio
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="flex flex-col text-right">
+                      <span className="text-[10px] font-mono text-polish-meta font-medium">
+                        {calculateWordCount(activeChapter.content).toLocaleString()} words
+                      </span>
+                      <span className="text-[8px] font-mono text-polish-meta/70 font-semibold">
+                        {activeChapter.content.length.toLocaleString()} chars
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setIsZenMode(true)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 bg-white border border-[#1A1A1A]/70 rounded text-[10px] font-sans font-bold uppercase tracking-wider text-polish-dark hover:bg-[#1A1A1A] hover:text-white transition cursor-pointer shadow-xs"
+                      title="Immersive Fullscreen Focus Writing Layout"
+                      id="btn-trigger-focus-mode"
+                    >
+                      <Maximize2 className="w-3" />
+                      <span>Focus screen</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="relative flex-1 flex flex-col">
+                  <textarea
+                    value={activeChapter.content}
+                    onChange={(e) => handleTextChange(e.target.value)}
+                    onFocus={() => setIsZenMode(true)}
+                    className="flex-1 w-full bg-[#FAF9F5] border border-polish-border rounded-b p-5 text-sm font-serif leading-relaxed focus:outline-none focus:ring-1 focus:ring-polish-dark focus:border-polish-dark text-polish-dark overflow-y-auto resize-none min-h-[520px] transition-all cursor-zoom-in"
+                    placeholder="Click here to start writing in immersive fullscreen layout..."
+                    id="edit-input-textarea"
+                  />
+                  <div 
+                    onClick={() => setIsZenMode(true)}
+                    className="absolute bottom-3 right-3 bg-[#1A1A1A]/90 hover:bg-[#1A1A1A] text-white text-[9px] font-sans font-bold px-3 py-1.5 rounded uppercase tracking-wider select-none shadow-sm flex items-center gap-1.5 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                  >
+                    <Maximize2 className="w-3 h-3" /> Focus Writing Screen (Esc to close)
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Content Editing Input */}
-            <div className="flex-1 flex flex-col space-y-1 relative group">
-              <div className="flex items-center justify-between">
-                <label className="text-[10px] font-sans font-bold tracking-wider uppercase text-polish-meta flex items-center gap-1.5">
-                  Interactive Text Content
-                  <span className="bg-amber-100 text-[#7D5A12] px-1.5 py-0.5 rounded text-[8px] font-mono normal-case tracking-normal">
-                    Click to Focus View
-                  </span>
-                </label>
-                <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-mono text-polish-meta text-right">
-                    {calculateWordCount(activeChapter.content)} words
-                  </span>
-                  <button
-                    onClick={() => setIsZenMode(true)}
-                    className="flex items-center gap-1 px-2 py-0.5 bg-white border border-[#1A1A1A] rounded text-[9px] font-sans font-bold uppercase tracking-wider text-polish-dark hover:bg-[#1A1A1A] hover:text-white transition cursor-pointer shadow-xs"
-                    title="Fullscreen Focus Writing Mode"
-                    id="btn-trigger-focus-mode"
+            {/* Plagiarism Checker Right Sidebar panel */}
+            {showPlagiarismPanel && (
+              <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-polish-border bg-[#F5F3EC] overflow-y-auto p-5 flex flex-col gap-4 animate-fade-in shrink-0" id="editor-originality-panel">
+                <div className="flex items-center justify-between border-b border-polish-border pb-2.5 select-none">
+                  <div className="flex items-center gap-1.5 text-polish-dark">
+                    <Fingerprint className="w-4 h-4 text-emerald-700 animate-pulse" />
+                    <span className="text-[11px] font-sans font-bold uppercase tracking-wide">Originality Audit</span>
+                  </div>
+                  <button 
+                    onClick={() => setShowPlagiarismPanel(false)}
+                    className="p-1 text-polish-meta hover:text-polish-dark rounded hover:bg-neutral-200 cursor-pointer transition-colors"
+                    title="Close audit report"
                   >
-                    <Maximize2 className="w-3 h-3" />
-                    <span>Focus screen</span>
+                    <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
+
+                {isPlagiarismChecking && (
+                  <div className="flex flex-col items-center justify-center py-16 px-4 space-y-4 text-center">
+                    <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-sans font-extrabold text-polish-dark uppercase tracking-wider">Analyzing draft authenticity</p>
+                      <p className="text-[9px] text-[#706E6B] animate-pulse">Running cross-literature scans...</p>
+                    </div>
+                  </div>
+                )}
+
+                {plagiarismError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded text-red-900 space-y-1.5 animate-fade-in">
+                    <div className="flex items-center gap-1.5 font-sans font-bold text-[10px] uppercase tracking-wider">
+                      <AlertCircle className="w-3.5 h-3.5 text-red-600" />
+                      <span>Scan Interrupted</span>
+                    </div>
+                    <p className="text-[10px] leading-relaxed">{plagiarismError}</p>
+                  </div>
+                )}
+
+                {plagiarismReport && (
+                  <div className="space-y-4 text-xs animate-fade-in">
+                    {/* Unique original meter dashboard */}
+                    <div className="bg-[#FAF9F5] border border-polish-border p-4 rounded-lg flex flex-col items-center text-center shadow-xs select-none">
+                      <div className="text-[9px] font-sans font-extrabold uppercase tracking-widest text-polish-meta">Originality Score</div>
+                      <div className="text-3xl font-serif font-black mt-1 text-polish-dark flex items-baseline gap-0.5">
+                        {plagiarismReport.originalityScore}<span className="text-xs font-bold font-sans text-polish-meta">%</span>
+                      </div>
+                      
+                      {/* Bar Level */}
+                      <div className="w-full bg-[#E5E2D9] h-1.5 rounded-full mt-2.5 overflow-hidden">
+                        <div 
+                          className={`h-full transition-all duration-1000 ${
+                            plagiarismReport.originalityScore >= 80 
+                              ? 'bg-emerald-600' 
+                              : plagiarismReport.originalityScore >= 55 
+                              ? 'bg-amber-500' 
+                              : 'bg-rose-600'
+                          }`}
+                          style={{ width: `${plagiarismReport.originalityScore}%` }}
+                        />
+                      </div>
+
+                      {/* Status Badge */}
+                      <div className={`mt-3 px-2.5 py-0.5 rounded text-[9px] font-sans font-extrabold uppercase tracking-wide border ${
+                        plagiarismReport.originalityScore >= 80
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          : plagiarismReport.originalityScore >= 55
+                          ? 'bg-amber-50 text-amber-800 border-amber-200'
+                          : 'bg-rose-50 text-rose-800 border-rose-200'
+                      }`}>
+                        {plagiarismReport.status}
+                      </div>
+                    </div>
+
+                    {/* Overall Summary paragraph */}
+                    <div className="bg-[#FAF9F5]/40 border border-polish-border/60 p-3 rounded-lg space-y-1.5">
+                      <span className="text-[9px] font-sans font-extrabold text-polish-dark uppercase tracking-widest block border-b border-polish-border/40 pb-1">Executive Summary</span>
+                      <p className="text-[10px] text-polish-text leading-relaxed text-justify whitespace-pre-line">{plagiarismReport.overallAnalysis}</p>
+                    </div>
+
+                    {/* Flagged rows details */}
+                    <div className="space-y-2.5">
+                      <span className="text-[9px] font-sans font-extrabold text-[#706E6B] uppercase tracking-widest block">Duplicate or Cliché Sequences</span>
+                      
+                      {plagiarismReport.flaggedSections.length === 0 ? (
+                        <div className="bg-emerald-50/20 border border-emerald-200/40 p-4 rounded-lg text-center space-y-2 text-emerald-800">
+                          <ShieldCheck className="w-6 h-6 text-emerald-600 mx-auto" />
+                          <div>
+                            <p className="text-[10px] font-sans font-bold uppercase tracking-wider">Uniqueness Check Clear</p>
+                            <p className="text-[9px] text-[#706E6B] mt-1">Excellent job! No generic prose, clichés, or structural citation concerns found.</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+                          {plagiarismReport.flaggedSections.map((sec, i) => (
+                            <div key={i} className="bg-white border border-polish-border rounded-lg p-3 space-y-2.5 shadow-xs transition hover:border-[#1A1A1A]/30">
+                              <div className="space-y-1">
+                                <span className="text-[8px] font-mono font-bold text-rose-700 bg-rose-50 border border-rose-100 rounded px-1.5 py-0.5 uppercase tracking-wide">Prose Warning</span>
+                                <p className="text-[10px] font-serif italic text-polish-dark leading-relaxed">"{sec.phrase}"</p>
+                              </div>
+
+                              <div className="space-y-1 bg-[#FAF9F5] p-2 rounded border border-polish-border/30">
+                                <span className="text-[8px] font-sans font-extrabold text-[#706E6B] uppercase tracking-wider">Stylistic Cliché Concern</span>
+                                <p className="text-[9px] text-polish-text leading-tight">{sec.similarityReason}</p>
+                              </div>
+
+                              <div className="space-y-1">
+                                <span className="text-[8px] font-sans font-extrabold text-emerald-800 uppercase tracking-widest">Polished Alternative Formulation</span>
+                                <p className="text-[10px] font-serif font-bold text-emerald-950 leading-relaxed">"{sec.suggestedAlternative}"</p>
+                              </div>
+
+                              <button
+                                onClick={() => handleReplacePhrase(sec.phrase, sec.suggestedAlternative)}
+                                className="w-full flex items-center justify-center gap-1.5 py-1 px-2.5 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white border border-emerald-700 rounded text-[9px] font-sans font-bold uppercase tracking-wider cursor-pointer shadow-xs transition"
+                                id={`btn-apply-replace-${i}`}
+                              >
+                                <Sparkles className="w-3 h-3 text-amber-300" />
+                                <span>Apply Alternative</span>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="relative flex-1 flex flex-col">
-                <textarea
-                  value={activeChapter.content}
-                  onChange={(e) => handleTextChange(e.target.value)}
-                  onFocus={() => setIsZenMode(true)}
-                  className="flex-1 w-full bg-[#FAF9F5] border border-polish-border rounded p-5 text-sm font-serif leading-relaxed focus:outline-none focus:ring-1 focus:ring-polish-dark focus:border-polish-dark text-polish-dark overflow-y-auto resize-none min-h-[520px] transition-all cursor-zoom-in"
-                  placeholder="Click here to start writing in immersive fullscreen layout..."
-                  id="edit-input-textarea"
-                />
-                <div 
-                  onClick={() => setIsZenMode(true)}
-                  className="absolute bottom-3 right-3 bg-[#1A1A1A]/90 hover:bg-[#1A1A1A] text-white text-[9px] font-sans font-bold px-3 py-1.5 rounded uppercase tracking-wider select-none shadow-sm flex items-center gap-1.5 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                >
-                  <Maximize2 className="w-3 h-3" /> Focus Writing Screen (Esc to close)
-                </div>
-              </div>
-            </div>
-          </div>
+            )}
+          </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-polish-meta text-xs">
             <PenTool className="w-12 h-12 text-polish-border mb-2 animate-bounce" />
@@ -750,10 +1108,15 @@ export const EditorView: React.FC<EditorViewProps> = ({ chapters, setChapters, o
               </div>
 
               {/* Status and Action Panel */}
-              <div className="flex items-center gap-3 shrink-0">
-                <div className="bg-[#F0EEE8] border border-polish-border px-3 py-1.5 rounded-lg font-mono text-[10px] text-polish-text flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span className="font-bold">{calculateWordCount(activeChapter.content)}</span> Words
+              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                <div className="bg-[#F0EEE8] border border-polish-border px-3 py-1.5 rounded-lg font-mono text-[10px] text-polish-text flex flex-col items-end gap-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span className="font-bold">{calculateWordCount(activeChapter.content)}</span> Words
+                  </div>
+                  <div className="text-[8px] text-polish-meta/70 font-semibold">
+                    {activeChapter.content.length.toLocaleString()} chars
+                  </div>
                 </div>
 
                 {savedStatus ? (
@@ -766,7 +1129,7 @@ export const EditorView: React.FC<EditorViewProps> = ({ chapters, setChapters, o
                     disabled={!hasChanges}
                     className={`px-3 py-1.5 rounded text-[10px] font-sans font-bold uppercase tracking-wider border transition-all ${
                       hasChanges
-                        ? 'bg-[#1A1A1A] hover:bg-black text-[#F9F7F2] border-[#1A1A1A] cursor-pointer'
+                        ? 'bg-[#1A1A1A] hover:bg-black text-[#F9F7F2] border-[#1A1A1A] cursor-pointer shadow-sm'
                         : 'bg-[#F0EEE8] text-polish-meta border-polish-border cursor-not-allowed'
                     }`}
                     id="zen-btn-save"

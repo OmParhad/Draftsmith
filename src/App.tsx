@@ -458,14 +458,16 @@ export default function App() {
     return (
       <div className="min-h-screen bg-polish-bg text-polish-dark flex flex-col justify-between font-sans antialiased animate-fade-in" id="landing-viewport">
         {/* Fixed Header */}
-        <header className="bg-polish-paper border-b border-polish-border px-6 md:px-10 py-4.5 sticky top-0 z-50 flex items-center justify-between shadow-sm" id="landing-header">
+        <header className="bg-[#FAF9F5] border-b border-polish-border px-6 md:px-10 py-4 sticky top-0 z-50 flex items-center justify-between shadow-sm" id="landing-header">
           <div className="flex items-center gap-3">
-            <div className="p-1.5 bg-polish-dark text-polish-paper rounded">
-              <BookMarked className="w-5 h-5" />
+            <div className="flex flex-col items-start leading-none select-none">
+              <span className="text-2xl md:text-[32px] font-sans font-extrabold tracking-tighter text-[#1A1A1A] lowercase leading-none">
+                draftsmith
+              </span>
+              <span className="text-[8px] md:text-[9.5px] font-mono tracking-widest text-[#4A4844] mt-1 block leading-none font-medium">
+                A Web TransScriptter
+              </span>
             </div>
-            <h1 className="text-xl md:text-2xl font-cormorant font-bold tracking-wide text-polish-dark">
-              Draftsmith
-            </h1>
           </div>
           <button 
             onClick={() => handleSetViewMode('studio')}
@@ -780,12 +782,14 @@ export default function App() {
             </span>
           </div>
           <div className="flex items-center gap-3">
-            <div className="p-1.5 bg-polish-dark text-polish-paper rounded">
-              <BookMarked className="w-5 h-5" />
+            <div className="flex flex-col items-start leading-none select-none">
+              <span className="text-2xl md:text-[28px] font-sans font-extrabold tracking-tighter text-[#1A1A1A] lowercase leading-none">
+                draftsmith
+              </span>
+              <span className="text-[8px] md:text-[9px] font-mono tracking-widest text-[#4A4844] mt-1 block leading-none font-medium">
+                A Web TransScriptter
+              </span>
             </div>
-            <h1 className="text-2xl md:text-3xl font-cormorant font-semibold tracking-wide text-polish-dark">
-              Draftsmith
-            </h1>
           </div>
         </div>
         
