@@ -86,3 +86,5 @@ Open [http://localhost:3000](http://localhost:3000) in your web browser.
 - **Micro-Animations**: Motion / Framer Motion
 - **PDF Core**: jsPDF
 - **Icons**: Lucide React
+
+## **PS: Feel free to edit the code. We are open source**
